@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+#root {
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* General Button Styles */
+button {
+  border-radius: 12px;
+  border: none;
+  padding: 0.75em 1.5em;
+  font-size: 1.1em;
+  font-weight: bold;
+  font-family: inherit;
+  background: linear-gradient(90deg, #7030a0, #a678ff);
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  background: linear-gradient(90deg, #512b81, #7030a0);
+  transform: scale(1.05);
+}
+
+/* Card */
+.card {
+  padding: 2em;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Logo Animation */
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+/* Smooth transitions */
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.fade-out {
+  animation: fadeOut 0.5s ease-in-out;
+}
+
+.scale-up {
+  animation: scaleUp 0.5s ease-in-out;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.9); }
+  to { transform: scale(1); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.animate-bounce {
+  animation: bounce 2s infinite;
+}
+
+.animate-fade-in {
+  animation: fadeIn 1.5s ease-in-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s infinite;
+}

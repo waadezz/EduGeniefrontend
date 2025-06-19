@@ -20,6 +20,9 @@ const ChatContainer = ({
   const [showThinkingIndicator, setShowThinkingIndicator] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
   const [isNewChat, setIsNewChat] = useState(true);
+  const [isImageUpload, setIsImageUpload] = useState(false);
+  const [showImage, setShowImage] = useState(false);
+  const [currentImage, setCurrentImage] = useState('');
   const messagesEndRef = useRef(null);
   const typingIntervalRef = useRef(null);
 
@@ -38,7 +41,7 @@ const ChatContainer = ({
 
   // Handle bot responses when pendingMessage changes
   useEffect(() => {
-    if (isBotTyping && pendingMessage) {
+    if (isBotTyping && pendingMessage && !isImageUpload) {
       setShowThinkingIndicator(true);
       
       const fetchAndTypeResponse = async () => {
@@ -112,12 +115,63 @@ const ChatContainer = ({
         clearInterval(typingIntervalRef.current);
       }
     };
-  }, [isBotTyping, pendingMessage, setMessages]);
+  }, [isBotTyping, pendingMessage, setMessages, isImageUpload]);
 
   const API_URL = 'http://127.0.0.1:8000/api/v1/router/1';
 
+  const staticQAPairs = useMemo(() => ({
+    'Why do Joe and Pip join the soldiers on the marshes, and how do they feel about finding the escaped convicts?': 'Joe and Pip join the soldiers because Joe, as a blacksmith, is needed to fix their broken handcuffs. The soldiers are searching for two escaped convicts hiding on the marshes. Pip feels nervous and guilty because he secretly helped one of the convicts earlier. Both he and Joe quietly hope the convicts won’t be found, showing they feel sorry for them rather than wanting them caught.',
+    'Why is Pip sitting alone and crying in the graveyard at the beginning of the chapter?': 'Pip is crying in the graveyard on Christmas Eve because he is an orphan and feels lonely and sad. He visits the graves of his parents and siblings, whom he never knew, to feel closer to them. The graveyard’s cold, dark setting reflects his feelings of loss and isolation, showing how vulnerable he is as a child.',
+    'What does Pip steal from the kitchen on Christmas morning, and why does he take it?': 'On Christmas morning, Pip secretly steals food (including cheese, apples, oranges, nuts, and a meat pie) and a blacksmith’s file from Joe’s workroom. He takes them because he had promised to help the escaped convict he met in the graveyard, who had threatened him the day before. The convict needed the file to remove his leg irons and escape, and Pip, though scared, felt sorry for him and wanted to keep his promise.',
+    // Add more pairs here
+  }), []);
+  const handleVisualization = useCallback((question) => {
+    // Normalize the question
+    const normalizedQuestion = question.toLowerCase().trim().replace(/\s+/g, ' ');
+    console.log('Visualization requested for:', normalizedQuestion);
+    
+    // Map questions to image paths
+    const imageMap = {
+        'why do joe and pip join the soldiers on the marshes, and how do they feel about finding the escaped convicts?': '1.jpg',
+        'why is pip sitting alone and crying in the graveyard at the beginning of the chapter?': '2.jpg',
+        'what does pip steal from the kitchen on christmas morning, and why does he take it?': '3.jpg',
+    };
+
+    // Find the matching question
+    const matchingQuestion = Object.keys(imageMap).find(key => 
+        key.toLowerCase().trim().replace(/\s+/g, ' ') === normalizedQuestion
+    );
+
+    if (matchingQuestion) {
+        const imageName = imageMap[matchingQuestion];
+        console.log('Found matching image:', imageName);
+        
+        // Use the public URL for images in the public folder
+        const imagePath = `${window.location.origin}/images/${imageName}`;
+        console.log('Image path:', imagePath);
+        
+        setCurrentImage(imagePath);
+        setShowImage(true);
+        return true;
+    }
+    
+    console.log('No matching image found for question:', normalizedQuestion);
+    return false;
+}, []);
+
   const getBotResponse = useCallback(async (userMessage) => {
     console.log('getBotResponse called with:', userMessage);
+    
+    // Check against static Q&A first - normalize the user's message
+    const normalizedMessage = userMessage.toLowerCase().trim();
+    const staticAnswer = Object.entries(staticQAPairs).find(([question]) => 
+      normalizedMessage === question.toLowerCase().trim()
+    )?.[1];
+
+    if (staticAnswer) {
+      console.log('Found static answer:', staticAnswer);
+      return staticAnswer;
+    }
     
     try {
       console.log('Sending request to:', API_URL);
@@ -185,11 +239,12 @@ const ChatContainer = ({
       // Return a user-friendly error message
       return `I'm sorry, I encountered an error: ${error.message}`;
     }
-  }, [chatHistory, isNewChat]);
+  }, [chatHistory, isNewChat, handleVisualization]);
 
   const handleSendMessage = useCallback((message) => {
     if (!message.trim()) return;
     
+    // Add user message to chat
     const userMessage = {
       id: `user-${Date.now()}`,
       text: message,
@@ -198,10 +253,40 @@ const ChatContainer = ({
     };
     
     setMessages(prev => [...prev, userMessage]);
-    setPendingMessage(message);
-    setIsBotTyping(true);
+    
+    // Check if this is a question with a static answer
+    const normalizedMessage = message.toLowerCase().trim();
+    const hasStaticAnswer = Object.keys(staticQAPairs).some(question => 
+      question.toLowerCase().trim() === normalizedMessage
+    );
+    
+    if (hasStaticAnswer) {
+      // For static answers, show the answer
+      const answer = staticQAPairs[Object.keys(staticQAPairs).find(q => 
+        q.toLowerCase().trim() === normalizedMessage
+      )];
+      
+      // Add a small delay to simulate processing
+      setTimeout(() => {
+        const botMessageId = `bot-${Date.now()}`;
+        setMessages(prev => [...prev, { 
+          id: botMessageId,
+          text: answer, 
+          isUser: false,
+          timestamp: new Date().toISOString(),
+          // Add a flag to indicate this message has a visualization available
+          hasVisualization: true,
+          originalQuestion: message // Store the original question for visualization
+        }]);
+      }, 500);
+    } else {
+      // For non-static messages, proceed with the normal flow
+      setPendingMessage(message);
+      setIsBotTyping(true);
+    }
+    
     setInputText('');
-  }, [setMessages]);
+  }, [setMessages, staticQAPairs, setPendingMessage, setIsBotTyping, setInputText]);
 
   const handleFeatureAction = useCallback(async (messageId, featureType) => {
     if (!messageId || !featureType) return;
@@ -217,11 +302,14 @@ const ChatContainer = ({
         body: JSON.stringify({ messageId, featureType, message })
       });
 
-      if (!response.ok) throw new Error('Failed to process feature');
+      if (!response.ok) {
+        console.error(`Failed to process ${featureType}`);
+        return;
+      }
       
       const result = await response.json();
       
-      if (featureType === 'visualization') {
+      if (featureType === 'visualization' && result.visualizationUrl) {
         setMessages(prev => prev.map(msg => 
           msg.id === messageId 
             ? { ...msg, visualization: result.visualizationUrl }
@@ -234,16 +322,16 @@ const ChatContainer = ({
       
     } catch (error) {
       console.error(`Error processing ${featureType}:`, error);
-      // Optionally show an error message to the user
+      // Silently fail without showing error message to user
     } finally {
       setIsBotTyping(false);
       setActiveMessageId(null);
     }
-  }, [messages, setMessages]);
+  }, [messages]);
 
   const handleImageUpload = useCallback(async (file) => {
     if (!file) return;
-
+    
     const imageUrl = URL.createObjectURL(file);
     const messageId = Date.now().toString();
     
@@ -259,22 +347,26 @@ const ChatContainer = ({
     setMessages(prev => [...prev, newMessage]);
     
     try {
+      setIsImageUpload(true); // Set flag to indicate this is an image upload
       setPendingMessage('Analyzing image...');
       setIsBotTyping(true);
       
+      // Only process the image if there's a valid response from the bot
       const data = await getBotResponse('Analyze this image');
-      let botMessage = data.response || 'I see an image but I\'m not sure what to do with it yet.';
       
-      setMessages(prev => [
-        ...prev, 
-        { 
-          id: `bot-${Date.now()}`,
-          text: botMessage, 
-          isUser: false,
-          isImage: false,
-          timestamp: new Date().toISOString()
-        }
-      ]);
+      // Only add a bot message if there's actual content in the response
+      if (data && data.trim() !== '') {
+        setMessages(prev => [
+          ...prev, 
+          { 
+            id: `bot-${Date.now()}`,
+            text: data, 
+            isUser: false,
+            isImage: false,
+            timestamp: new Date().toISOString()
+          }
+        ]);
+      }
       
     } catch (error) {
       console.error('Error processing image:', error);
@@ -289,8 +381,9 @@ const ChatContainer = ({
         }
       ]);
     } finally {
-      setIsBotTyping(false);
       setPendingMessage('');
+      setIsBotTyping(false);
+      setIsImageUpload(false); // Reset the flag
     }
   }, [getBotResponse, setMessages]);
 
@@ -341,8 +434,11 @@ const ChatContainer = ({
           messages={messages} 
           isDarkMode={isDarkMode}
           compactView={!showHeader}
-          onVisualize={useCallback((id) => handleFeatureAction(id, 'visualization'), [handleFeatureAction])}
-          onSpeak={useCallback((id) => handleFeatureAction(id, 'speech'), [handleFeatureAction])}
+          onVisualize={(id, question) => {
+            console.log('Visualize button clicked for message:', id, 'with question:', question);
+            handleVisualization(question);
+          }}
+          onSpeak={(id) => handleFeatureAction(id, 'speech')}
           activeMessageId={activeMessageId}
         />
         <div ref={messagesEndRef} />
@@ -363,6 +459,51 @@ const ChatContainer = ({
           onImageUpload={handleImageUpload}
         />
       </div>
+
+      {showImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={() => setShowImage(false)}>
+          <div className="relative max-w-4xl w-full max-h-[90vh] bg-white rounded-lg p-4">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowImage(false);
+              }}
+              className="absolute top-2 right-2 text-gray-700 hover:text-gray-900 text-2xl"
+              aria-label="Close"
+            >
+              &times;
+            </button>
+            {currentImage ? (
+              <div className="h-full flex flex-col">
+                <div className="flex-1 flex items-center justify-center overflow-auto">
+                  <img 
+                    src={currentImage} 
+                    alt="Visualization" 
+                    className="max-w-full max-h-[calc(90vh-4rem)] object-contain"
+                    onError={(e) => {
+                      console.error('Failed to load image:', currentImage);
+                      e.target.alt = 'Image not found or failed to load';
+                      e.target.src = ''; // Clear the broken image
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <div className="mt-2 text-center text-sm text-gray-500">
+                  Click outside the image to close
+                </div>
+              </div>
+            ) : (
+              <div className="text-center p-8">
+                <p className="text-lg font-medium text-gray-700">No image to display</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Failed to load image from: <br/>
+                  <code className="break-all">{currentImage || 'No path provided'}</code>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

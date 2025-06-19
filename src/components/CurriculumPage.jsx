@@ -492,7 +492,7 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                           className="px-6 py-2.5 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-2 2h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                           </svg>
                           Back to Curriculum
                         </button>
@@ -932,7 +932,7 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
             <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
               <h2 className="text-3xl md:text-4xl font-bold mb-10 text-[#7030a0] text-center">Choose a Grammar Unit</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-6xl px-4">
-                {Array.from({ length: 6 }, (_, i) => (
+                {Array.from({ length: 12 }, (_, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedGrammarUnit(i + 1)}
@@ -1106,7 +1106,7 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
             <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
               <h2 className="text-3xl md:text-4xl font-bold mb-10 text-[#7030a0] text-center">Choose a Vocabulary Unit</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-6xl px-4">
-                {Array.from({ length: 6 }, (_, i) => (
+                {Array.from({ length: 12 }, (_, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedVocabularyUnit(i + 1)}
@@ -1140,14 +1140,19 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                   Vocabulary - Unit {selectedVocabularyUnit}
                 </h2>
 
-                <div className="w-full h-[75vh] shadow-lg rounded-lg overflow-hidden border-2 border-[#7030a0] mb-8">
-                  <iframe
-                    src={`/vocabulary_pdfs/Unit_${selectedVocabularyUnit}_Vocabulary_PDF.pdf`}
-                    title={`Unit ${selectedVocabularyUnit} Vocabulary`}
-                    className="w-full h-full"
-                  />
-                </div>
-
+                {selectedVocabularyUnit <= 6 ? (
+                  <div className="w-full h-[75vh] shadow-lg rounded-lg overflow-hidden border-2 border-[#7030a0] mb-8">
+                    <iframe
+                      src={`/vocabulary_pdfs/Unit_${selectedVocabularyUnit}_Vocabulary_PDF.pdf`}
+                      title={`Unit ${selectedVocabularyUnit} Vocabulary`}
+                      className="w-full h-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-[75vh] flex items-center justify-center bg-white rounded-lg shadow-lg border-2 border-[#7030a0] mb-8">
+                    <p className="text-xl text-gray-500">Content coming soon for Unit {selectedVocabularyUnit}</p>
+                  </div>
+                )}
                 {vocabularyQuestions[selectedVocabularyUnit] && vocabularyQuestions[selectedVocabularyUnit].length > 0 && (
                   <div>
                     <div

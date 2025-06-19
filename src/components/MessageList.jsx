@@ -1,73 +1,65 @@
-import { memo } from 'react';
-import Message from './Message';
+import React, { memo } from 'react';
 
-const MessageList = memo(({ 
-  messages, 
-  isDarkMode, 
-  compactView, 
-  onVisualize, 
-  onSpeak, 
-  activeMessageId 
+const MessageList = memo(({
+  messages,
+  isDarkMode,
+  compactView = false,
+  onVisualize,
+  onSpeak,
+  activeMessageId,
 }) => {
   return (
-    <div className={`flex-1 overflow-y-auto p-4 ${compactView ? 'pt-0' : ''}`}>
-      <div className="space-y-3">
-        {messages.map((msg) => (
-          <div key={msg.id || msg.timestamp || Math.random()} className="message-container">
-            <Message 
-              {...msg} 
-              isDarkMode={isDarkMode} 
-            />
-            
-            {/* Feature buttons for bot messages */}
-            {!msg.isUser && msg.text && !msg.isImage && (
-              <div className={`flex justify-end gap-2 mt-1 mr-2 transition-opacity duration-200 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                <button
-                  onClick={() => onVisualize(msg.id)}
-                  disabled={activeMessageId === msg.id}
-                  className={`px-3 py-1 text-sm rounded-full flex items-center gap-1 transition-colors ${
-                    isDarkMode 
-                      ? 'hover:bg-gray-600 text-blue-300' 
-                      : 'hover:bg-gray-200 text-blue-600'
-                  } ${activeMessageId === msg.id ? 'opacity-50' : ''}`}
-                  aria-label="Generate visualization"
-                >
-                  <span>🖼️</span>
-                  <span className="hidden sm:inline">Visualize</span>
-                </button>
-                
-                <button
-                  onClick={() => onSpeak(msg.id)}
-                  disabled={activeMessageId === msg.id}
-                  className={`px-3 py-1 text-sm rounded-full flex items-center gap-1 transition-colors ${
-                    isDarkMode 
-                      ? 'hover:bg-gray-600 text-green-300' 
-                      : 'hover:bg-gray-200 text-green-600'
-                  } ${activeMessageId === msg.id ? 'opacity-50' : ''}`}
-                  aria-label="Convert to speech"
-                >
-                  <span>🔊</span>
-                  <span className="hidden sm:inline">Hear</span>
-                </button>
-              </div>
+    <div className="flex-1 overflow-y-auto px-2 pb-2">
+      {messages.map((msg) => (
+        <div
+          key={msg.id}
+          className={`mb-3 flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
+        >
+          <div
+            className={`rounded-xl px-4 py-2 max-w-[75%] break-words shadow ${
+              msg.isUser
+                ? isDarkMode
+                  ? 'bg-[#7030a0] text-white'  // Dark mode user message (purple)
+                  : 'bg-[#7030a0] text-white'  // Light mode user message (purple)
+                : isDarkMode
+                ? 'bg-[#333] text-gray-100'    // Dark mode bot message
+                : 'bg-white text-[#012060]'     // Light mode bot message
+            } ${activeMessageId === msg.id ? 'ring-2 ring-[#a078c9]' : ''}`}
+          >
+            {msg.isImage && msg.imageUrl ? (
+              <img
+                src={msg.imageUrl}
+                alt="Uploaded"
+                className="max-w-xs max-h-60 rounded-lg mb-2"
+              />
+            ) : (
+              <span>{msg.text}</span>
             )}
-            
-            {/* Visualization display */}
-            {msg.visualization && (
-              <div className="mt-2 ml-12 transition-all duration-300 transform hover:scale-[1.01]">
-                <img 
-                  src={msg.visualization} 
-                  alt="Visualization" 
-                  className="max-w-full h-auto rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm"
-                  loading="lazy"
-                />
+
+            {/* Show buttons for bot messages that aren't images */}
+            {!msg.isUser && !msg.isImage && (
+              <div className="flex justify-end space-x-2 mt-2">
+                {msg.hasVisualization && (
+                  <button
+                    onClick={() => onVisualize?.(msg.id, msg.originalQuestion || msg.text)}
+                    disabled={activeMessageId === msg.id}
+                    className={`px-3 py-1 rounded-md text-sm ${isDarkMode ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'} ${activeMessageId === msg.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {activeMessageId === msg.id ? 'Visualizing...' : 'Visualize'}
+                  </button>
+                )}
+                <button
+                  onClick={() => onSpeak?.(msg.id)}
+                  disabled={activeMessageId === msg.id}
+                  className={`px-3 py-1 rounded-md text-sm ${isDarkMode ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'} ${activeMessageId === msg.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {activeMessageId === msg.id ? 'Speaking...' : 'Speak'}
+                </button>
               </div>
             )}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   );
 });

@@ -7,7 +7,11 @@ const Message = memo(({
   isDarkMode, 
   isImage = false, 
   imageUrl, 
-  timestamp = new Date().toISOString()
+  timestamp = new Date().toISOString(),
+  showActions = false,
+  onVisualize,
+  onSpeak,
+  isActive = false
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -41,33 +45,40 @@ const Message = memo(({
           className={`max-w-[90%] rounded-xl overflow-hidden transition-all duration-200 ${
             isUser
               ? isDarkMode
-                ? 'border-2 border-[#5d5d5d]'
-                : 'border-2 border-[#7030a0]'
+                ? 'border-2 border-[#5d5d5d] bg-[#5d5d5d] p-2'
+                : 'border-2 border-[#7030a0] bg-white p-2'
               : isDarkMode
-              ? 'border-2 border-[#6d6d6d]'
-              : 'border-2 border-[#f2f2f2]'
+              ? 'border-2 border-[#6d6d6d] bg-[#6d6d6d] p-2'
+              : 'border-2 border-[#f2f2f2] bg-white p-2'
           }`}
         >
-          {!imageLoaded && !imageError && (
-            <div className="w-64 h-48 flex items-center justify-center bg-gray-200 dark:bg-gray-700">
-              <span className="text-gray-500 dark:text-gray-400">Loading image...</span>
-            </div>
-          )}
-          {imageError ? (
-            <div className="w-64 h-48 flex items-center justify-center bg-red-100 dark:bg-red-900/30">
-              <span className="text-red-500 dark:text-red-400">Failed to load image</span>
-            </div>
-          ) : (
+          <div className="max-w-full max-h-96 overflow-hidden flex items-center justify-center">
             <img
               src={imageUrl}
               alt="User uploaded content"
-              className={`max-h-96 max-w-full object-contain transition-opacity duration-200 ${
-                !imageLoaded ? 'opacity-0' : 'opacity-100'
-              }`}
+              className="max-h-96 max-w-full object-contain rounded-lg"
               onLoad={handleImageLoad}
               onError={handleImageError}
               loading="lazy"
             />
+          </div>
+          {showActions && !isUser && (
+            <div className="flex justify-end space-x-2 mt-2">
+              <button
+                onClick={() => onVisualize && onVisualize(id)}
+                disabled={isActive}
+                className={`px-3 py-1 rounded-md text-sm ${isDarkMode ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'} ${isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isActive ? 'Visualizing...' : 'Visualize'}
+              </button>
+              <button
+                onClick={() => onSpeak && onSpeak(id)}
+                disabled={isActive}
+                className={`px-3 py-1 rounded-md text-sm ${isDarkMode ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'} ${isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isActive ? 'Speaking...' : 'Speak'}
+              </button>
+            </div>
           )}
         </div>
         <span className={`text-xs mt-1 mx-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>

@@ -149,16 +149,26 @@ const ChatContainer = ({
         const imageName = imageMap[matchingQuestion];
         console.log('Found matching image:', imageName);
         
-        // Add a delay before showing the image (3000ms = 3 seconds)
+        // Add a delay before showing the image (5000ms = 5 seconds)
         setTimeout(() => {
             // Use the public URL for images in the public folder
             const imagePath = `${window.location.origin}/images/${imageName}`;
             console.log('Image path:', imagePath);
             
+            // Add the image as a message from the bot
+            setMessages(prev => [...prev, {
+                id: `img-${Date.now()}`,
+                text: '',
+                isUser: false,
+                isImage: true,
+                imageUrl: imagePath,
+                timestamp: new Date().toISOString()
+            }]);
+            
             setCurrentImage(imagePath);
             setShowImage(true);
             setActiveMessageId(null); // Clear the active message ID after showing the image
-        }, 3000); // Increased to 3 second delay
+        }, 5000);
         
         return true;
     }
@@ -166,89 +176,71 @@ const ChatContainer = ({
     console.log('No matching image found for question:', normalizedQuestion);
     setActiveMessageId(null); // Clear the active message ID if no match found
     return false;
-}, []);
+}, [setMessages]);
+const getBotResponse = useCallback(async (userMessage) => {
+  console.log('getBotResponse called with:', userMessage);
+  
+  // Check against static Q&A first
+  const normalizedMessage = userMessage.toLowerCase().trim();
+  const staticAnswer = Object.entries(staticQAPairs).find(([question]) => 
+    normalizedMessage === question.toLowerCase().trim()
+  )?.[1];
 
-  const getBotResponse = useCallback(async (userMessage) => {
-    console.log('getBotResponse called with:', userMessage);
-    
-    // Check against static Q&A first - normalize the user's message
-    const normalizedMessage = userMessage.toLowerCase().trim();
-    const staticAnswer = Object.entries(staticQAPairs).find(([question]) => 
-      normalizedMessage === question.toLowerCase().trim()
-    )?.[1];
-
-    if (staticAnswer) {
-      console.log('Found static answer:', staticAnswer);
-      return staticAnswer;
-    }
-    
-    try {
-      console.log('Sending request to:', API_URL);
-      console.log('Request payload:', {
+  if (staticAnswer) {
+    console.log('Found static answer:', staticAnswer);
+    return staticAnswer;
+  }
+  
+  try {
+    console.log('Sending request to API...');
+    const response = await fetch('http://127.0.0.1:8000/api/v1/router/1', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         question: userMessage,
         new_chat: isNewChat,
         chat_hist: chatHistory
-      });
-      
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: userMessage,
-          new_chat: isNewChat,
-          chat_hist: chatHistory
-        }),
-      });
+      }),
+    });
 
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const responseData = await response.json().catch(error => {
-        console.error('Error parsing JSON:', error);
-        throw new Error('Invalid JSON response from server');
-      });
-      
-      console.log('Response data:', responseData);
-      
-      if (!Array.isArray(responseData) || responseData.length !== 2) {
-        console.error('Unexpected response format:', responseData);
-        throw new Error('Unexpected response format from server');
-      }
-      
+    console.log('Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      throw new Error(`Server error: ${response.status} - ${errorText}`);
+    }
+    
+    const responseData = await response.json();
+    console.log('Response data:', responseData);
+    
+    // Handle different response formats
+    if (Array.isArray(responseData) && responseData.length >= 2) {
       const [result, updatedChatHistory] = responseData;
-      console.log('Parsed result:', result, 'Updated history:', updatedChatHistory);
-      
-      // Update chat history with the one returned from the server
       if (Array.isArray(updatedChatHistory)) {
         setChatHistory(updatedChatHistory);
-      } else {
-        console.warn('Invalid chat history format from server:', updatedChatHistory);
-        setChatHistory(prev => [...prev, 
-          { role: 'user', content: userMessage },
-          { role: 'assistant', content: result }
-        ]);
       }
-      
-      // Mark as not a new chat after first message
-      if (isNewChat) {
-        setIsNewChat(false);
-      }
-      
       return result;
-      
-    } catch (error) {
-      console.error('Error in getBotResponse:', error);
-      // Return a user-friendly error message
-      return `I'm sorry, I encountered an error: ${error.message}`;
     }
-  }, [chatHistory, isNewChat, handleVisualization]);
+    
+    if (typeof responseData === 'object' && responseData !== null) {
+      return responseData.response || responseData.message || responseData.answer || 'I received your message.';
+    }
+    
+    return String(responseData);
+    
+  } catch (error) {
+    console.error('Error in getBotResponse:', error);
+    return `I'm sorry, I encountered an error: ${error.message}. Please try again.`;
+  } finally {
+    if (isNewChat) {
+      setIsNewChat(false);
+    }
+  }
+}, [chatHistory, isNewChat, staticQAPairs]);
+
 
   const handleSendMessage = useCallback((message) => {
     if (!message.trim()) return;
@@ -308,6 +300,7 @@ const ChatContainer = ({
       const response = await fetch('http://127.0.0.1:8000/api/v1/process-feature', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+
         body: JSON.stringify({ messageId, featureType, message })
       });
 
@@ -364,15 +357,13 @@ const ChatContainer = ({
       
       // Create FormData to send the image file
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file, file.name);  
       
       console.log('Sending request to OCR endpoint...');
       
-      // Send the image to the OCR endpoint
       const response = await fetch('http://127.0.0.1:8000/ocr/question', {
         method: 'POST',
         body: formData,
-        // Don't set Content-Type header, let the browser set it with the correct boundary
       });
       
       console.log('Response status:', response.status);
@@ -386,22 +377,18 @@ const ChatContainer = ({
       const data = await response.json();
       console.log('OCR response:', data);
       
-      // Add the OCR response as a bot message
-      if (data && (data.text || data.message)) {
-        setMessages(prev => [
-          ...prev, 
-          { 
-            id: `bot-${Date.now()}`,
-            text: data.text || data.message, 
-            isUser: false,
-            isImage: false,
-            timestamp: new Date().toISOString()
-          }
-        ]);
-      } else {
-        console.warn('Unexpected response format from OCR endpoint:', data);
-        throw new Error('Unexpected response format from server');
-      }
+      const responseText = data.response || data.text || data.message || 'Image processed successfully';
+      
+      setMessages(prev => [
+        ...prev, 
+        { 
+          id: `bot-${Date.now()}`,
+          text: responseText, 
+          isUser: false,
+          isImage: false,
+          timestamp: new Date().toISOString()
+        }
+      ]);
       
     } catch (error) {
       console.error('Error processing image:', error);

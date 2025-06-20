@@ -375,7 +375,8 @@ const ChatContainer = ({
       const botAnswer = await getBotResponse(cleanedQuestion);
 
       // 5. Format both into a single bot message
-      const combinedMessage = `Your question is:\n${cleanedQuestion}\n\nThe answer is:\n${botAnswer}`;
+      //const combinedMessage = `Your question is:\n${cleanedQuestion}\n\nThe answer is:\n${botAnswer}`;
+      const combinedMessage = `Your Question:\n\n\n${cleanedQuestion}\n\n The Answer:\n\n${botAnswer};`
 
       // 6. Display bot message
       setMessages((prev) => [...prev, {

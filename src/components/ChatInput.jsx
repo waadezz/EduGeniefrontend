@@ -38,11 +38,10 @@ const ChatInput = ({ value, onChange, onSend, isDarkMode, onImageUpload }) => {
           className="hidden"
         />
         <textarea
-          className={`flex-1 border-2 rounded-xl p-3 text-lg focus:outline-none placeholder-gray-400 ${
-            isDarkMode
+          className={`flex-1 border-2 rounded-xl p-3 text-lg focus:outline-none placeholder-gray-400 ${isDarkMode
               ? 'bg-[#5d5d5d] border-[#6d6d6d] text-[#f2f2f2] focus:border-[#7030a0]'
               : 'bg-white border-[#7030a0] text-[#012060] focus:border-[#012060]'
-          }`}
+            }`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -50,9 +49,8 @@ const ChatInput = ({ value, onChange, onSend, isDarkMode, onImageUpload }) => {
           rows="3"
         />
         <button
-          className={`px-6 py-3 rounded-xl text-white transition duration-300 ${
-            isDarkMode ? 'bg-[#7030a0] hover:bg-[#5d5d5d]' : 'bg-[#7030a0] hover:bg-[#012060]'
-          }`}
+          className={`px-6 py-3 rounded-xl text-white transition duration-300 ${isDarkMode ? 'bg-[#7030a0] hover:bg-[#5d5d5d]' : 'bg-[#7030a0] hover:bg-[#012060]'
+            }`}
           onClick={onSend}
           disabled={!value.trim()}
         >

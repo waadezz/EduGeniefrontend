@@ -149,26 +149,16 @@ const ChatContainer = ({
       const imageName = imageMap[matchingQuestion];
       console.log('Found matching image:', imageName);
 
-      // Add a delay before showing the image (5000ms = 5 seconds)
+      // Add a delay before showing the image (3000ms = 3 seconds)
       setTimeout(() => {
         // Use the public URL for images in the public folder
         const imagePath = `${window.location.origin}/images/${imageName}`;
         console.log('Image path:', imagePath);
 
-        // Add the image as a message from the bot
-        setMessages(prev => [...prev, {
-          id: `img-${Date.now()}`,
-          text: '',
-          isUser: false,
-          isImage: true,
-          imageUrl: imagePath,
-          timestamp: new Date().toISOString()
-        }]);
-
         setCurrentImage(imagePath);
         setShowImage(true);
         setActiveMessageId(null); // Clear the active message ID after showing the image
-      }, 5000);
+      }, 3000); // Increased to 3 second delay
 
       return true;
     }
@@ -176,69 +166,89 @@ const ChatContainer = ({
     console.log('No matching image found for question:', normalizedQuestion);
     setActiveMessageId(null); // Clear the active message ID if no match found
     return false;
-  }, [setMessages]);
+  }, []);
 
+  const getBotResponse = useCallback(async (userMessage) => {
+    console.log('getBotResponse called with:', userMessage);
 
+    // Check against static Q&A first - normalize the user's message
+    const normalizedMessage = userMessage.toLowerCase().trim();
+    const staticAnswer = Object.entries(staticQAPairs).find(([question]) =>
+      normalizedMessage === question.toLowerCase().trim()
+    )?.[1];
 
+    if (staticAnswer) {
+      console.log('Found static answer:', staticAnswer);
+      return staticAnswer;
+    }
 
-
-  const getBotResponse = async (userMessage) => {
     try {
-      console.log('Sending:', userMessage);
+      console.log('Sending request to:', API_URL);
+      console.log('Request payload:', {
+        question: userMessage,
+        new_chat: isNewChat,
+        chat_hist: chatHistory
+      });
+
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ question: userMessage }),
+        body: JSON.stringify({
+          question: userMessage,
+          new_chat: isNewChat,
+          chat_hist: chatHistory
+        }),
       });
 
-      if (!response.ok) throw new Error('Failed to get response');
-      const data = await response.json();
-      console.log('Received response:', data);
+      console.log('Response status:', response.status);
 
-      // Format comprehension answers
-      if (data["Evaluating Questions and Answers"]) {
-        const qaItems = data["Evaluating Questions and Answers"];
-        return qaItems.map((item, i) => {
-          let msg = `Question ${i + 1}: ${item.Q}\n\nAnswer: ${item["Correct Answer"]}`;
-          if (item["Explanation of your answer"]) {
-            msg += `\n\nExplanation: ${item["Explanation of your answer"]}`;
-          }
-          return msg;
-        }).join("\n\n");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Handle other types
-      if (data.correct_answer) {
-        return `Question: ${data.question || ''}\n\nCorrect Answer: ${data.correct_answer}`;
+      const responseData = await response.json().catch(error => {
+        console.error('Error parsing JSON:', error);
+        throw new Error('Invalid JSON response from server');
+      });
+
+      console.log('Response data:', responseData);
+
+      if (!Array.isArray(responseData) || responseData.length !== 2) {
+        console.error('Unexpected response format:', responseData);
+        throw new Error('Unexpected response format from server');
       }
 
-      if (data.translated_text) {
-        return `Translation: ${data.translated_text}`;
+      const [result, updatedChatHistory] = responseData;
+      console.log('Parsed result:', result, 'Updated history:', updatedChatHistory);
+
+      // Update chat history with the one returned from the server
+      if (Array.isArray(updatedChatHistory)) {
+        setChatHistory(updatedChatHistory);
+      } else {
+        console.warn('Invalid chat history format from server:', updatedChatHistory);
+        setChatHistory(prev => [...prev,
+        { role: 'user', content: userMessage },
+        { role: 'assistant', content: result }
+        ]);
       }
 
-      if (typeof data.response === 'string') {
-        return data.response;
+      // Mark as not a new chat after first message
+      if (isNewChat) {
+        setIsNewChat(false);
       }
 
-      if (data.answer) {
-        return data.answer;
-      }
-
-      if (typeof data === 'string') {
-        return data;
-      }
-
-      // Fallback: stringify unknown object
-      return JSON.stringify(data);
+      return result;
 
     } catch (error) {
-      console.error('API Error:', error);
-      return "Sorry, I couldn't connect to the server.";
+      console.error('Error in getBotResponse:', error);
+      // Return a user-friendly error message
+      return `I'm sorry, I encountered an error: ${error.message}`;
     }
-  };
-
+  }, [chatHistory, isNewChat, handleVisualization]);
 
   const handleSendMessage = useCallback((message) => {
     if (!message.trim()) return;
@@ -350,8 +360,11 @@ const ChatContainer = ({
 
       // 2. Upload image to OCR endpoint
       const formData = new FormData();
-      formData.append('file', file, file.name);
+      formData.append('file', file);
 
+      console.log('Sending request to OCR endpoint...');
+
+      // Send the image to the OCR endpoint
       const response = await fetch('http://127.0.0.1:8000/ocr/question', {
         method: 'POST',
         body: formData,
@@ -365,26 +378,22 @@ const ChatContainer = ({
       const data = await response.json();
       console.log('OCR response:', data);
 
-      // 3. Extract the question from OCR response
-      const rawExtract = data.extracted_question || '';
-      const match = rawExtract.match(/"text"\s*:\s*"([^"]+)"/);
-      const extractedText = match ? match[1] : rawExtract;
-      const cleanedQuestion = extractedText.trim();
-
-      // 4. Get the answer from the bot
-      const botAnswer = await getBotResponse(cleanedQuestion);
-
-      // 5. Format both into a single bot message
-      //const combinedMessage = `Your question is:\n${cleanedQuestion}\n\nThe answer is:\n${botAnswer}`;
-      const combinedMessage = `Your Question:\n\n\n${cleanedQuestion}\n\n The Answer:\n\n${botAnswer};`
-
-      // 6. Display bot message
-      setMessages((prev) => [...prev, {
-        id: `bot-${Date.now()}`,
-        text: combinedMessage,
-        isUser: false,
-        timestamp: new Date().toISOString()
-      }]);
+      // Add the OCR response as a bot message
+      if (data && (data.text || data.message)) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `bot-${Date.now()}`,
+            text: data.text || data.message,
+            isUser: false,
+            isImage: false,
+            timestamp: new Date().toISOString()
+          }
+        ]);
+      } else {
+        console.warn('Unexpected response format from OCR endpoint:', data);
+        throw new Error('Unexpected response format from server');
+      }
 
     } catch (error) {
       console.error('Image upload error:', error);

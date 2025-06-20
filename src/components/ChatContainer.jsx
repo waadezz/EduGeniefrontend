@@ -125,7 +125,10 @@ const ChatContainer = ({
     'What does Pip steal from the kitchen on Christmas morning, and why does he take it?': 'On Christmas morning, Pip secretly steals food (including cheese, apples, oranges, nuts, and a meat pie) and a blacksmith’s file from Joe’s workroom. He takes them because he had promised to help the escaped convict he met in the graveyard, who had threatened him the day before. The convict needed the file to remove his leg irons and escape, and Pip, though scared, felt sorry for him and wanted to keep his promise.',
     // Add more pairs here
   }), []);
-  const handleVisualization = useCallback((question) => {
+  const handleVisualization = useCallback((messageId, question) => {
+    // Set the active message ID to show loading state
+    setActiveMessageId(messageId);
+    
     // Normalize the question
     const normalizedQuestion = question.toLowerCase().trim().replace(/\s+/g, ' ');
     console.log('Visualization requested for:', normalizedQuestion);
@@ -146,16 +149,22 @@ const ChatContainer = ({
         const imageName = imageMap[matchingQuestion];
         console.log('Found matching image:', imageName);
         
-        // Use the public URL for images in the public folder
-        const imagePath = `${window.location.origin}/images/${imageName}`;
-        console.log('Image path:', imagePath);
+        // Add a delay before showing the image (3000ms = 3 seconds)
+        setTimeout(() => {
+            // Use the public URL for images in the public folder
+            const imagePath = `${window.location.origin}/images/${imageName}`;
+            console.log('Image path:', imagePath);
+            
+            setCurrentImage(imagePath);
+            setShowImage(true);
+            setActiveMessageId(null); // Clear the active message ID after showing the image
+        }, 3000); // Increased to 3 second delay
         
-        setCurrentImage(imagePath);
-        setShowImage(true);
         return true;
     }
     
     console.log('No matching image found for question:', normalizedQuestion);
+    setActiveMessageId(null); // Clear the active message ID if no match found
     return false;
 }, []);
 
@@ -332,6 +341,8 @@ const ChatContainer = ({
   const handleImageUpload = useCallback(async (file) => {
     if (!file) return;
     
+    console.log('Starting image upload for file:', file.name, 'type:', file.type, 'size:', file.size);
+    
     const imageUrl = URL.createObjectURL(file);
     const messageId = Date.now().toString();
     
@@ -347,25 +358,49 @@ const ChatContainer = ({
     setMessages(prev => [...prev, newMessage]);
     
     try {
-      setIsImageUpload(true); // Set flag to indicate this is an image upload
+      setIsImageUpload(true);
       setPendingMessage('Analyzing image...');
       setIsBotTyping(true);
       
-      // Only process the image if there's a valid response from the bot
-      const data = await getBotResponse('Analyze this image');
+      // Create FormData to send the image file
+      const formData = new FormData();
+      formData.append('file', file);
       
-      // Only add a bot message if there's actual content in the response
-      if (data && data.trim() !== '') {
+      console.log('Sending request to OCR endpoint...');
+      
+      // Send the image to the OCR endpoint
+      const response = await fetch('http://127.0.0.1:8000/ocr/question', {
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type header, let the browser set it with the correct boundary
+      });
+      
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server responded with error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log('OCR response:', data);
+      
+      // Add the OCR response as a bot message
+      if (data && (data.text || data.message)) {
         setMessages(prev => [
           ...prev, 
           { 
             id: `bot-${Date.now()}`,
-            text: data, 
+            text: data.text || data.message, 
             isUser: false,
             isImage: false,
             timestamp: new Date().toISOString()
           }
         ]);
+      } else {
+        console.warn('Unexpected response format from OCR endpoint:', data);
+        throw new Error('Unexpected response format from server');
       }
       
     } catch (error) {
@@ -374,7 +409,7 @@ const ChatContainer = ({
         ...prev, 
         { 
           id: `error-${Date.now()}`,
-          text: 'Sorry, I had trouble analyzing the image.', 
+          text: `Failed to process image: ${error.message}`, 
           isUser: false,
           isImage: false,
           timestamp: new Date().toISOString()
@@ -383,9 +418,9 @@ const ChatContainer = ({
     } finally {
       setPendingMessage('');
       setIsBotTyping(false);
-      setIsImageUpload(false); // Reset the flag
+      setIsImageUpload(false);
     }
-  }, [getBotResponse, setMessages]);
+  }, [setMessages]);
 
   // Memoize the header to prevent unnecessary re-renders
   const header = useMemo(() => {
@@ -436,7 +471,7 @@ const ChatContainer = ({
           compactView={!showHeader}
           onVisualize={(id, question) => {
             console.log('Visualize button clicked for message:', id, 'with question:', question);
-            handleVisualization(question);
+            handleVisualization(id, question);
           }}
           onSpeak={(id) => handleFeatureAction(id, 'speech')}
           activeMessageId={activeMessageId}

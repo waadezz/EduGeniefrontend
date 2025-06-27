@@ -64,13 +64,18 @@ const Message = memo(({
           </div>
           {showActions && !isUser && (
             <div className="flex justify-end space-x-2 mt-2">
-              <button
-                onClick={() => onVisualize && onVisualize(id)}
-                disabled={isActive}
-                className={`px-3 py-1 rounded-md text-sm ${isDarkMode ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'} ${isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isActive ? 'Visualizing...' : 'Visualize'}
-              </button>
+             // In Message.jsx, update the Visualize button:
+<button
+  onClick={() => onVisualize && onVisualize(id)}
+  disabled={isActive}
+  className={`px-3 py-1 rounded-md text-sm ${
+    isDarkMode 
+      ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' 
+      : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'
+  } ${isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+>
+  {isActive ? 'Visualizing...' : 'Visualize'}
+</button>
               <button
                 onClick={() => onSpeak && onSpeak(id)}
                 disabled={isActive}

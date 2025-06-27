@@ -1,3 +1,4 @@
+// MessageList.jsx
 import React, { memo } from 'react';
 
 const MessageList = memo(({
@@ -6,7 +7,9 @@ const MessageList = memo(({
   compactView = false,
   onVisualize,
   onSpeak,
-  activeMessageId,
+  visualizingMessageId,
+  speakingMessageId,
+  playingAudioId,
 }) => {
   return (
     <div className="flex-1 overflow-y-auto px-2 pb-2">
@@ -19,12 +22,12 @@ const MessageList = memo(({
             className={`rounded-xl px-4 py-2 max-w-[75%] break-words shadow ${
               msg.isUser
                 ? isDarkMode
-                  ? 'bg-[#7030a0] text-white'  // Dark mode user message (purple)
-                  : 'bg-[#7030a0] text-white'  // Light mode user message (purple)
+                  ? 'bg-[#7030a0] text-white'
+                  : 'bg-[#7030a0] text-white'
                 : isDarkMode
-                ? 'bg-[#333] text-gray-100'    // Dark mode bot message
-                : 'bg-white text-[#012060]'     // Light mode bot message
-            } ${activeMessageId === msg.id ? 'ring-2 ring-[#a078c9]' : ''}`}
+                ? 'bg-[#333] text-gray-100'
+                : 'bg-white text-[#012060]'
+            }`}
           >
             {msg.isImage && msg.imageUrl ? (
               <img
@@ -33,7 +36,14 @@ const MessageList = memo(({
                 className="max-w-xs max-h-60 rounded-lg mb-2"
               />
             ) : (
-              <span>{msg.text}</span>
+              <div className="whitespace-pre-line">
+                {msg.text.split('\n').map((line, idx, arr) => (
+                  <React.Fragment key={idx}>
+                    {line}
+                    {idx < arr.length - 1 && <br />}
+                  </React.Fragment>
+                ))}
+              </div>
             )}
 
             {/* Show buttons for bot messages that aren't images */}
@@ -41,19 +51,44 @@ const MessageList = memo(({
               <div className="flex justify-end space-x-2 mt-2">
                 {msg.hasVisualization && (
                   <button
-                    onClick={() => onVisualize?.(msg.id, msg.originalQuestion || msg.text)}
-                    disabled={activeMessageId === msg.id}
-                    className={`px-3 py-1 rounded-md text-sm ${isDarkMode ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'} ${activeMessageId === msg.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onVisualize?.(msg.id, msg.originalQuestion || msg.text);
+                    }}
+                    disabled={!!visualizingMessageId}
+                    className={`px-3 py-1 rounded-md text-sm ${
+                      isDarkMode 
+                        ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' 
+                        : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'
+                    } ${
+                      visualizingMessageId === msg.id 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : ''
+                    }`}
                   >
-                    {activeMessageId === msg.id ? 'Visualizing...' : 'Visualize'}
+                    {visualizingMessageId === msg.id ? 'Visualizing...' : 'Visualize'}
                   </button>
                 )}
                 <button
-                  onClick={() => onSpeak?.(msg.id)}
-                  disabled={activeMessageId === msg.id}
-                  className={`px-3 py-1 rounded-md text-sm ${isDarkMode ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d]' : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'} ${activeMessageId === msg.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSpeak?.(msg.id);
+                  }}
+                  disabled={!!speakingMessageId}
+                  className={`px-3 py-1 rounded-md text-sm ${
+                    isDarkMode 
+                      ? 'bg-[#5d5d5d] hover:bg-[#6d6d6d] text-gray-200' 
+                      : 'bg-[#7030a0] hover:bg-[#5a2580] text-white'
+                  } ${
+                    speakingMessageId === msg.id 
+                      ? 'opacity-70' 
+                      : playingAudioId === msg.id 
+                        ? 'audio-playing' 
+                        : ''
+                  }`}
+                  title="Listen to this message"
                 >
-                  {activeMessageId === msg.id ? 'Speaking...' : 'Speak'}
+                  🔊
                 </button>
               </div>
             )}
@@ -64,7 +99,6 @@ const MessageList = memo(({
   );
 });
 
-// Add display name for better debugging
 MessageList.displayName = 'MessageList';
 
 export default MessageList;

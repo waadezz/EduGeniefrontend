@@ -3,6 +3,30 @@ import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import GenieImage from '../assets/Genie.png';
 
+const API_BASE_URL = 'https://182e-104-196-189-165.ngrok-free.app';
+
+const getBotResponse = async (userMessage) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/generate-response`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ question: userMessage }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get response from bot');
+    }
+
+    const data = await response.json();
+    return data.response || "I'm not sure how to respond to that.";
+  } catch (error) {
+    console.error('Error getting bot response:', error);
+    return "Sorry, I'm having trouble connecting to the server.";
+  }
+};
+
 const ChatContainer = ({
   messages,
   setMessages,
@@ -16,15 +40,85 @@ const ChatContainer = ({
   const [inputText, setInputText] = useState(prefilledInput || '');
   const [isBotTyping, setIsBotTyping] = useState(false);
   const [pendingMessage, setPendingMessage] = useState('');
-  const [activeMessageId, setActiveMessageId] = useState(null);
+  const [visualizingMessageId, setVisualizingMessageId] = useState(null);
+  const [speakingMessageId, setSpeakingMessageId] = useState(null);
   const [showThinkingIndicator, setShowThinkingIndicator] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
   const [isNewChat, setIsNewChat] = useState(true);
   const [isImageUpload, setIsImageUpload] = useState(false);
   const [showImage, setShowImage] = useState(false);
   const [currentImage, setCurrentImage] = useState('');
+  const [playingAudioId, setPlayingAudioId] = useState(null);
   const messagesEndRef = useRef(null);
   const typingIntervalRef = useRef(null);
+  const audioRef = useRef(null);
+
+  // Fetch and type response function
+  const fetchAndTypeResponse = useCallback(async () => {
+    const botMessageId = `bot-${Date.now()}`;
+
+    try {
+      // Get response from the bot
+      const data = await getBotResponse(pendingMessage);
+
+      // Hide the thinking indicator
+      setShowThinkingIndicator(false);
+
+      // Add the actual response message
+      setMessages(prev => [...prev, {
+        id: botMessageId,
+        text: '',
+        isUser: false,
+        hasVisualization: true,
+        originalQuestion: pendingMessage,
+        timestamp: new Date().toISOString()
+      }]);
+
+      // Format the bot's response
+      let botMessage = data;
+
+      // Type out the response character by character
+      let index = 0;
+      typingIntervalRef.current = setInterval(() => {
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const messageIndex = newMessages.findIndex(msg => msg.id === botMessageId);
+
+          if (messageIndex !== -1) {
+            newMessages[messageIndex] = {
+              ...newMessages[messageIndex],
+              text: botMessage.slice(0, index + 1)
+            };
+          }
+
+
+          return newMessages;
+        });
+
+        if (index >= botMessage.length) {
+          clearInterval(typingIntervalRef.current);
+          setIsBotTyping(false);
+          setPendingMessage('');
+        }
+        index++;
+      }, 20);
+
+    } catch (error) {
+      console.error('Error getting bot response:', error);
+      setShowThinkingIndicator(false);
+
+      // Add error message
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        text: "Sorry, I'm having trouble connecting to the server.",
+        isUser: false,
+        timestamp: new Date().toISOString()
+      }]);
+
+      setIsBotTyping(false);
+      setPendingMessage('');
+    }
+  }, [pendingMessage, setMessages, setShowThinkingIndicator, setIsBotTyping]);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -43,81 +137,19 @@ const ChatContainer = ({
   useEffect(() => {
     if (isBotTyping && pendingMessage) {
       setShowThinkingIndicator(true);
-
-      const fetchAndTypeResponse = async () => {
-        const botMessageId = `bot-${Date.now()}`;
-
-        try {
-          // Get response from the bot
-          const data = await getBotResponse(pendingMessage);
-
-          // Hide the thinking indicator
-          setShowThinkingIndicator(false);
-
-          // Add the actual response message
-          setMessages(prev => [...prev, {
-            id: botMessageId,
-            text: '',
-            isUser: false,
-            timestamp: new Date().toISOString()
-          }]);
-
-          // Format the bot's response
-          let botMessage = data;
-
-          // Type out the response character by character
-          let index = 0;
-          typingIntervalRef.current = setInterval(() => {
-            setMessages(prev => {
-              const newMessages = [...prev];
-              const messageIndex = newMessages.findIndex(msg => msg.id === botMessageId);
-
-              if (messageIndex !== -1) {
-                newMessages[messageIndex] = {
-                  ...newMessages[messageIndex],
-                  text: botMessage.slice(0, index + 1)
-                };
-              }
-
-              return newMessages;
-            });
-
-            if (index >= botMessage.length) {
-              clearInterval(typingIntervalRef.current);
-              setIsBotTyping(false);
-              setPendingMessage('');
-            }
-            index++;
-          }, 20);
-
-        } catch (error) {
-          console.error('Error getting bot response:', error);
-          setShowThinkingIndicator(false);
-
-          // Add error message
-          setMessages(prev => [...prev, {
-            id: `error-${Date.now()}`,
-            text: "Sorry, I'm having trouble connecting to the server.",
-            isUser: false,
-            timestamp: new Date().toISOString()
-          }]);
-
-          setIsBotTyping(false);
-          setPendingMessage('');
-        }
-      };
-
       fetchAndTypeResponse();
     }
+  }, [isBotTyping, pendingMessage, fetchAndTypeResponse]);
 
+  // Clean up audio on unmount
+  useEffect(() => {
     return () => {
-      if (typingIntervalRef.current) {
-        clearInterval(typingIntervalRef.current);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
       }
     };
-  }, [isBotTyping, pendingMessage, setMessages, isImageUpload]);
-
-  const API_URL = 'http://127.0.0.1:8000/api/v1/router/1';
+  }, []);
 
   const staticQAPairs = useMemo(() => ({
     'Why do Joe and Pip join the soldiers on the marshes, and how do they feel about finding the escaped convicts?': 'Joe and Pip join the soldiers because Joe, as a blacksmith, is needed to fix their broken handcuffs. The soldiers are searching for two escaped convicts hiding on the marshes. Pip feels nervous and guilty because he secretly helped one of the convicts earlier. Both he and Joe quietly hope the convicts won’t be found, showing they feel sorry for them rather than wanting them caught.',
@@ -125,173 +157,199 @@ const ChatContainer = ({
     'What does Pip steal from the kitchen on Christmas morning, and why does he take it?': 'On Christmas morning, Pip secretly steals food (including cheese, apples, oranges, nuts, and a meat pie) and a blacksmith’s file from Joe’s workroom. He takes them because he had promised to help the escaped convict he met in the graveyard, who had threatened him the day before. The convict needed the file to remove his leg irons and escape, and Pip, though scared, felt sorry for him and wanted to keep his promise.',
     // Add more pairs here
   }), []);
-  const handleVisualization = useCallback((messageId, question) => {
-    // Set the active message ID to show loading state
-    setActiveMessageId(messageId);
 
-    // Normalize the question
-    const normalizedQuestion = question.toLowerCase().trim().replace(/\s+/g, ' ');
-    console.log('Visualization requested for:', normalizedQuestion);
-
-    // Map questions to image paths
-    const imageMap = {
-      'why do joe and pip join the soldiers on the marshes, and how do they feel about finding the escaped convicts?': '1.jpg',
-      'why is pip sitting alone and crying in the graveyard at the beginning of the chapter?': '2.jpg',
-      'what does pip steal from the kitchen on christmas morning, and why does he take it?': '3.jpg',
-    };
-
-    // Find the matching question
-    const matchingQuestion = Object.keys(imageMap).find(key =>
-      key.toLowerCase().trim().replace(/\s+/g, ' ') === normalizedQuestion
-    );
-
-    if (matchingQuestion) {
-      const imageName = imageMap[matchingQuestion];
-      console.log('Found matching image:', imageName);
-
-      // Add a delay before showing the image (5000ms = 5 seconds)
-      setTimeout(() => {
-        // Use the public URL for images in the public folder
-        const imagePath = `${window.location.origin}/images/${imageName}`;
-        console.log('Image path:', imagePath);
-
-        // Add the image as a message from the bot
-        setMessages(prev => [...prev, {
-          id: `img-${Date.now()}`,
-          text: '',
-          isUser: false,
-          isImage: true,
-          imageUrl: imagePath,
-          timestamp: new Date().toISOString()
-        }]);
-
-        setCurrentImage(imagePath);
-        setShowImage(true);
-        setActiveMessageId(null); // Clear the active message ID after showing the image
-      }, 5000);
-
-      return true;
-    }
-
-    console.log('No matching image found for question:', normalizedQuestion);
-    setActiveMessageId(null); // Clear the active message ID if no match found
-    return false;
-  }, [setMessages]);
-
-
-
-
-
-  const getBotResponse = async (userMessage) => {
+  const handleVisualization = async (messageId, question) => {
     try {
-      console.log('Sending:', userMessage);
-      const response = await fetch(API_URL, {
+      setVisualizingMessageId(messageId);
+      setIsBotTyping(true);
+      setShowThinkingIndicator(true);
+
+      const message = messages.find(msg => msg.id === messageId);
+      if (!message) {
+        console.error('Message not found');
+        return;
+      }
+
+      console.log('=== STARTING VISUALIZATION REQUEST ===');
+      console.log('Question:', message.originalQuestion || message.text);
+
+      const API_BASE_URL = 'https://fa61-34-71-15-16.ngrok-free.app';
+
+      const requestBody = JSON.stringify({
+        narrative_text: "We need a blacksmith to mend some handcuffs, please,' the first soldier said. 'We're looking for two convicts who broke their handcuffs and escaped. We think they are hiding out on the marshes, although they probably won't try to get away until tonight.' When he asked if we had seen them, everybody else said no. I did not speak. Joe mended the handcuffs for the soldiers, and they waited with us as he worked. When they were finished, Joe and I followed the soldiers out of the village and onto the marshes.",
+        summary: "Joe and Pip were following soldiers onto the marshes to search for two escaped convicts. Joe had mended handcuffs for the soldiers before they all set out. They hoped not to find the convicts as they walked through the rainy and windy marshes."
+      });
+
+      const response = await fetch(`${API_BASE_URL}/generate-scene`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
         },
-        body: JSON.stringify({ question: userMessage }),
+        body: requestBody
       });
 
-      if (!response.ok) throw new Error('Failed to get response');
-      const data = await response.json();
-      console.log('Received response:', data);
-
-      // Format comprehension answers
-      if (data["Evaluating Questions and Answers"]) {
-        const qaItems = data["Evaluating Questions and Answers"];
-        return qaItems.map((item, i) => {
-          let msg = `Question ${i + 1}: ${item.Q}\n\nAnswer: ${item["Correct Answer"]}`;
-          if (item["Explanation of your answer"]) {
-            msg += `\n\nExplanation: ${item["Explanation of your answer"]}`;
-          }
-          return msg;
-        }).join("\n\n");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
-      // Handle other types
-      if (data.correct_answer) {
-        return `Question: ${data.question || ''}\n\nCorrect Answer: ${data.correct_answer}`;
-      }
+      const result = await response.json();
 
-      if (data.translated_text) {
-        return `Translation: ${data.translated_text}`;
-      }
+      if (result.image_url) {
+        const newMessage = {
+          id: `img-${Date.now()}`,
+          text: 'Here is the visualization:',
+          isUser: false,
+          isImage: true,
+          imageUrl: result.image_url,
+          timestamp: new Date().toISOString()
+        };
 
-      if (typeof data.response === 'string') {
-        return data.response;
+        setMessages(prev => [...prev, newMessage]);
+      } else {
+        throw new Error('No image URL received from the server');
       }
-
-      if (data.answer) {
-        return data.answer;
-      }
-
-      if (typeof data === 'string') {
-        return data;
-      }
-
-      // Fallback: stringify unknown object
-      return JSON.stringify(data);
 
     } catch (error) {
-      console.error('API Error:', error);
-      return "Sorry, I couldn't connect to the server.";
+      console.error('Error generating visualization:', error);
+      const errorMessage = {
+        id: `error-${Date.now()}`,
+        text: `Failed to generate visualization: ${error.message}`,
+        isUser: false,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsBotTyping(false);
+      setShowThinkingIndicator(false);
+      setVisualizingMessageId(null);
     }
   };
 
+  const handleSpeak = async (messageId) => {
+    console.log('--- Starting handleSpeak ---');
+    try {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+        setPlayingAudioId(null);
+      }
 
-  const handleSendMessage = useCallback((message) => {
-    if (!message.trim()) return;
-
-    // Add user message to chat
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      text: message,
-      isUser: true,
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-
-    // Check if this is a question with a static answer
-    const normalizedMessage = message.toLowerCase().trim();
-    const hasStaticAnswer = Object.keys(staticQAPairs).some(question =>
-      question.toLowerCase().trim() === normalizedMessage
-    );
-
-    if (hasStaticAnswer) {
-      // For static answers, show the answer
-      const answer = staticQAPairs[Object.keys(staticQAPairs).find(q =>
-        q.toLowerCase().trim() === normalizedMessage
-      )];
-
-      // Add a small delay to simulate processing
-      setTimeout(() => {
-        const botMessageId = `bot-${Date.now()}`;
-        setMessages(prev => [...prev, {
-          id: botMessageId,
-          text: answer,
-          isUser: false,
-          timestamp: new Date().toISOString(),
-          // Add a flag to indicate this message has a visualization available
-          hasVisualization: true,
-          originalQuestion: message // Store the original question for visualization
-        }]);
-      }, 500);
-    } else {
-      // For non-static messages, proceed with the normal flow
-      setPendingMessage(message);
-      setIsBotTyping(true);
+      setSpeakingMessageId(messageId);
+      const message = messages.find(msg => msg.id === messageId);
+      if (!message) {
+        console.error('Message not found for ID:', messageId);
+        return;
+      }
+  
+      // If we already have an audio URL, play it
+      if (message.audioUrl) {
+        try {
+          await playAudio(message.audioUrl, messageId);
+          return;
+        } catch (error) {
+          console.error('Error playing cached audio:', error);
+        }
+      }
+  
+      const NGROK_TUNNEL = 'https://d6a2-104-199-193-238.ngrok-free.app';
+  
+      const response = await fetch(`${NGROK_TUNNEL}/generate-speech`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          text: message.text,
+          speaker: "Ana Florence"
+        })
+      });
+  
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Server error: ${response.status} - ${errText}`);
+      }
+  
+      const data = await response.json();
+      const audioUrl = data.audio_url;
+  
+      if (!audioUrl) {
+        throw new Error('No audio_url returned from backend');
+      }
+  
+      // Update the message with the audio URL
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === messageId ? { ...msg, audioUrl } : msg
+        )
+      );
+  
+      // Play the audio
+      await playAudio(audioUrl, messageId);
+  
+    } catch (error) {
+      console.error('Error in handleSpeak:', error);
+    } finally {
+      setSpeakingMessageId(null);
     }
+  };
 
-    setInputText('');
-  }, [setMessages, staticQAPairs, setPendingMessage, setIsBotTyping, setInputText]);
+  const playAudio = (audioUrl, messageId) => {
+    return new Promise((resolve, reject) => {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+        setPlayingAudioId(null);
+      }
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      setPlayingAudioId(messageId);
+
+      audio.onplay = () => {
+        console.log('Audio started playing');
+      };
+
+      audio.onended = () => {
+        console.log('Audio finished playing');
+        setPlayingAudioId(null);
+        audioRef.current = null;
+        resolve();
+      };
+
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error);
+        setPlayingAudioId(null);
+        audioRef.current = null;
+        reject(error);
+      };
+
+      const playPromise = audio.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Audio play failed:', error);
+          setPlayingAudioId(null);
+          audioRef.current = null;
+          reject(error);
+        });
+      }
+    });
+  };
 
   const handleFeatureAction = useCallback(async (messageId, featureType) => {
     if (!messageId || !featureType) return;
 
     try {
       setIsBotTyping(true);
+
+
       setActiveMessageId(messageId);
 
       const message = messages.find(msg => msg.id === messageId)?.text || '';
@@ -399,8 +457,6 @@ const ChatContainer = ({
     }
   };
 
-
-
   // Memoize the header to prevent unnecessary re-renders
   const header = useMemo(() => {
     if (!showHeader) return null;
@@ -430,42 +486,88 @@ const ChatContainer = ({
     );
   }, [showHeader, showTitle, isDarkMode, context]);
 
+  const handleSendMessage = useCallback((message) => {
+    if (!message.trim()) return;
+
+    // Add user message to chat
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      text: message,
+      isUser: true,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+
+    // Check if this is a question with a static answer
+    const normalizedMessage = message.toLowerCase().trim();
+    const hasStaticAnswer = Object.keys(staticQAPairs).some(question =>
+      question.toLowerCase().trim() === normalizedMessage
+    );
+
+    if (hasStaticAnswer) {
+      // For static answers, show the answer
+      const answer = staticQAPairs[Object.keys(staticQAPairs).find(q =>
+        q.toLowerCase().trim() === normalizedMessage
+      )];
+
+      // Add a small delay to simulate processing
+      setTimeout(() => {
+        const botMessageId = `bot-${Date.now()}`;
+        setMessages(prev => [...prev, {
+          id: botMessageId,
+          text: answer,
+          isUser: false,
+          timestamp: new Date().toISOString(),
+          hasVisualization: true,
+          originalQuestion: message
+        }]);
+      }, 500);
+    } else {
+      // For non-static messages, proceed with the normal flow
+      setPendingMessage(message);
+      setIsBotTyping(true);
+    }
+
+    setInputText('');
+  }, [setMessages, staticQAPairs, setPendingMessage, setIsBotTyping, setInputText]);
+
   return (
-    <div className={`w-full ${showHeader ? 'h-screen p-4' : 'h-full p-2'} flex flex-col items-center ${isDarkMode ? 'bg-[#3d3d3d]' : 'bg-gradient-to-r from-[#f2f2f2] to-[#7030a0]'
-      }`}>
+    <div className={`w-full ${showHeader ? 'min-h-screen p-2 sm:p-4' : 'h-full p-2'} flex flex-col items-center ${isDarkMode ? 'bg-[#3d3d3d]' : 'bg-gradient-to-r from-[#f2f2f2] to-[#7030a0]'}`}>
       {header}
 
       <div
-        className={`w-full ${showHeader ? 'max-w-4xl' : 'max-w-full'} rounded-2xl shadow-xl p-4 flex flex-col ${showHeader ? 'h-[80vh]' : 'h-full'
+        className={`w-full ${showHeader ? 'max-w-6xl' : 'max-w-full'} rounded-2xl shadow-xl p-2 sm:p-4 flex flex-col ${showHeader ? 'h-[85vh]' : 'h-full'}
           } ${isDarkMode ? 'bg-[#4d4d4d]' : 'bg-[#d8d8d8]'}`}
       >
-        <MessageList
-          messages={messages}
-          isDarkMode={isDarkMode}
-          compactView={!showHeader}
-          onVisualize={(id, question) => {
-            console.log('Visualize button clicked for message:', id, 'with question:', question);
-            handleVisualization(id, question);
-          }}
-          onSpeak={(id) => handleFeatureAction(id, 'speech')}
-          activeMessageId={activeMessageId}
-        />
-        <div ref={messagesEndRef} />
+        <div className="flex-1 overflow-y-auto mb-2">
+          <MessageList
+            messages={messages}
+            isDarkMode={isDarkMode}
+            onVisualize={handleVisualization}
+            onSpeak={handleSpeak}
+            visualizingMessageId={visualizingMessageId}
+            speakingMessageId={speakingMessageId}
+            playingAudioId={playingAudioId}
+          />
+          <div ref={messagesEndRef} />
 
-        {showThinkingIndicator && (
-          <div className={`text-sm md:text-lg italic mt-2 ${isDarkMode ? 'text-gray-300' : 'text-[#7030a0]'
-            }`}>
-            Genie is thinking...
-          </div>
-        )}
+          {showThinkingIndicator && (
+            <div className={`text-sm md:text-lg italic mt-2 ${isDarkMode ? 'text-gray-300' : 'text-[#7030a0]'}`}>
+              Genie is thinking...
+            </div>
+          )}
+        </div>
 
-        <ChatInput
-          value={inputText}
-          onChange={setInputText}
-          onSend={handleSendMessage}
-          isDarkMode={isDarkMode}
-          onImageUpload={handleImageUpload}
-        />
+        <div className="sticky bottom-0 bg-inherit pt-2 pb-1">
+          <ChatInput
+            value={inputText}
+            onChange={setInputText}
+            onSend={handleSendMessage}
+            isDarkMode={isDarkMode}
+            onImageUpload={handleImageUpload}
+          />
+        </div>
       </div>
 
       {showImage && (

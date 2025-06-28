@@ -27,6 +27,7 @@ const ChatContainer = ({
   const [isProcessingVisualization, setIsProcessingVisualization] = useState(false);
   const messagesEndRef = useRef(null);
   const typingIntervalRef = useRef(null);
+  const [visualizingMessageId, setVisualizingMessageId] = useState(null);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -131,74 +132,201 @@ const ChatContainer = ({
 
   const API_URL = 'http://127.0.0.1:8000/api/v1/router/1';
 
+  // const handleVisualization = useCallback((messageId, question) => {
+  //   if (!question) {
+  //     const message = messages.find(msg => msg.id === messageId);
+  //     if (message) {
+  //       question = message.text;
+  //     } else {
+  //       console.error('No question found for visualization');
+  //       return;
+  //     }
+  //   }
+
+  //   setIsProcessingVisualization(true);
+  //   setActiveMessageId(messageId);
+
+  //   // Normalize the question
+  //   const normalizedQuestion = question.toLowerCase().trim().replace(/\s+/g, ' ');
+  //   console.log('Visualization requested for:', normalizedQuestion);
+
+  //   // Map questions to image paths
+  //   const imageMap = {
+  //     'why do joe and pip join the soldiers on the marshes, and how do they feel about finding the escaped convicts?': '1.jpg',
+  //     'why is pip sitting alone and crying in the graveyard at the beginning of the chapter?': '2.jpg',
+  //     'what does pip steal from the kitchen on christmas morning, and why does he take it?': '3.jpg',
+  //   };
+
+  //   // Find the matching question
+  //   const matchingQuestion = Object.keys(imageMap).find(key =>
+  //     key.toLowerCase().trim().replace(/\s+/g, ' ') === normalizedQuestion
+  //   );
+
+  //   if (matchingQuestion) {
+  //     const imageName = imageMap[matchingQuestion];
+  //     console.log('Found matching image:', imageName);
+  //     const imagePath = `${window.location.origin}/images/${imageName}`;
+
+  //     // Add a small delay to simulate processing
+  //     setTimeout(() => {
+  //       setMessages(prev => [...prev, {
+  //         id: `vis-${Date.now()}`,
+  //         text: '',
+  //         isUser: false,
+  //         isImage: true,
+  //         imageUrl: imagePath,
+  //         timestamp: new Date().toISOString()
+  //       }]);
+
+  //       setCurrentImage(imagePath);
+  //       setShowImage(true);
+  //     }, 10000);
+  //   } else {
+  //     // If no matching visualization, show a message
+  //     setMessages(prev => [...prev, {
+  //       id: `msg-${Date.now()}`,
+  //       text: "I don't have a visualization for that question yet, but I'm happy to answer it!",
+  //       isUser: false,
+  //       timestamp: new Date().toISOString()
+  //     }]);
+  //   }
+
+  //   setIsProcessingVisualization(false);
+  //   setActiveMessageId(null);
+  // }, [messages, setMessages]);
+
+
+  // Replace the existing handleVisualization function with this:
   const staticQAPairs = useMemo(() => ({
     'Why do Joe and Pip join the soldiers on the marshes, and how do they feel about finding the escaped convicts?': 'Joe and Pip join the soldiers because Joe, as a blacksmith, is needed to fix their broken handcuffs. The soldiers are searching for two escaped convicts hiding on the marshes. Pip feels nervous and guilty because he secretly helped one of the convicts earlier. Both he and Joe quietly hope the convicts won\'t be found, showing they feel sorry for them rather than wanting them caught.',
     'Why is Pip sitting alone and crying in the graveyard at the beginning of the chapter?': 'Pip is crying in the graveyard on Christmas Eve because he is an orphan and feels lonely and sad. He visits the graves of his parents and siblings, whom he never knew, to feel closer to them. The graveyard\'s cold, dark setting reflects his feelings of loss and isolation, showing how vulnerable he is as a child.',
     'What does Pip steal from the kitchen on Christmas morning, and why does he take it?': 'On Christmas morning, Pip secretly steals food (including cheese, apples, oranges, nuts, and a meat pie) and a blacksmith\'s file from Joe\'s workroom. He takes them because he had promised to help the escaped convict he met in the graveyard, who had threatened him the day before. The convict needed the file to remove his leg irons and escape, and Pip, though scared, felt sorry for him and wanted to keep his promise.',
   }), []);
 
-  const handleVisualization = useCallback((messageId, question) => {
-    if (!question) {
+  // Map of questions to their corresponding image filenames
+  const questionToImageMap = {
+    'Why do Joe and Pip join the soldiers on the marshes, and how do they feel about finding the escaped convicts?': '1.jpg',
+    'Why is Pip sitting alone and crying in the graveyard at the beginning of the chapter?': '2.jpg',
+    'What does Pip steal from the kitchen on Christmas morning, and why does he take it?': '3.jpg',
+  };
+
+  const handleVisualization = useCallback(async (messageId, question) => {
+    try {
+      setVisualizingMessageId(messageId);
+      setIsBotTyping(true);
+      setShowThinkingIndicator(true);
+
       const message = messages.find(msg => msg.id === messageId);
-      if (message) {
-        question = message.text;
-      } else {
-        console.error('No question found for visualization');
+      if (!message) {
+        console.error('Message not found');
         return;
       }
-    }
 
-    setIsProcessingVisualization(true);
-    setActiveMessageId(messageId);
+      const questionText = question || message.originalQuestion || message.text;
+      const normalizedQuestion = questionText.toLowerCase().trim().replace(/\s+/g, ' ');
 
-    // Normalize the question
-    const normalizedQuestion = question.toLowerCase().trim().replace(/\s+/g, ' ');
-    console.log('Visualization requested for:', normalizedQuestion);
+      // Check if it's a static question
+      const staticQuestion = Object.keys(staticQAPairs).find(q =>
+        q.toLowerCase().trim().replace(/\s+/g, ' ') === normalizedQuestion
+      );
 
-    // Map questions to image paths
-    const imageMap = {
-      'why do joe and pip join the soldiers on the marshes, and how do they feel about finding the escaped convicts?': '1.jpg',
-      'why is pip sitting alone and crying in the graveyard at the beginning of the chapter?': '2.jpg',
-      'what does pip steal from the kitchen on christmas morning, and why does he take it?': '3.jpg',
-    };
+      if (staticQuestion) {
+        const answer = staticQAPairs[staticQuestion];
+        const imageName = questionToImageMap[staticQuestion];
+        const imagePath = `${window.location.origin}/images/${imageName}`;
 
-    // Find the matching question
-    const matchingQuestion = Object.keys(imageMap).find(key =>
-      key.toLowerCase().trim().replace(/\s+/g, ' ') === normalizedQuestion
-    );
-
-    if (matchingQuestion) {
-      const imageName = imageMap[matchingQuestion];
-      console.log('Found matching image:', imageName);
-      const imagePath = `${window.location.origin}/images/${imageName}`;
-
-      // Add a small delay to simulate processing
-      setTimeout(() => {
+        // Add the answer message
         setMessages(prev => [...prev, {
-          id: `vis-${Date.now()}`,
-          text: '',
+          id: `bot-${Date.now()}`,
+          text: answer,
           isUser: false,
-          isImage: true,
-          imageUrl: imagePath,
           timestamp: new Date().toISOString()
         }]);
 
-        setCurrentImage(imagePath);
-        setShowImage(true);
-      }, 1000);
-    } else {
-      // If no matching visualization, show a message
-      setMessages(prev => [...prev, {
-        id: `msg-${Date.now()}`,
-        text: "I don't have a visualization for that question yet, but I'm happy to answer it!",
+        // Add the visualization after a short delay
+        setTimeout(() => {
+          const visualizationId = `vis-${Date.now()}`;
+          setMessages(prev => [...prev, {
+            id: visualizationId,
+            text: '',
+            isUser: false,
+            isImage: true,
+            imageUrl: imagePath,
+            timestamp: new Date().toISOString()
+          }]);
+          setCurrentImage(imagePath);
+          setShowImage(true);
+        }, 10000);
+
+      } else {
+        // If not a static question, proceed with the API call
+        console.log('=== STARTING VISUALIZATION REQUEST ===');
+        console.log('Question:', questionText);
+
+        const API_BASE_URL = 'https://fa61-34-71-15-16.ngrok-free.app';
+        const requestBody = JSON.stringify({
+          narrative_text: response.graded_documents,
+          summary: response.answer
+        });
+
+        const response = await fetch(`${API_BASE_URL}/generate-scene`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true'
+          },
+          body: requestBody
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const result = await response.json();
+
+        if (result.image_url) {
+          const newMessage = {
+            id: `img-${Date.now()}`,
+            text: 'Here is the visualization:',
+            isUser: false,
+            isImage: true,
+            imageUrl: result.image_url,
+            timestamp: new Date().toISOString()
+          };
+
+          setMessages(prev => [...prev, newMessage]);
+          setCurrentImage(result.image_url);
+          setShowImage(true);
+        } else {
+          throw new Error('No image URL received from the server');
+        }
+      }
+
+    } catch (error) {
+      console.error('Error generating visualization:', error);
+      const errorMessage = {
+        id: `error-${Date.now()}`,
+        text: `Failed to generate visualization: ${error.message}`,
         isUser: false,
         timestamp: new Date().toISOString()
-      }]);
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsBotTyping(false);
+      setShowThinkingIndicator(false);
+      setVisualizingMessageId(null);
     }
+  }, [messages, setMessages, staticQAPairs]);
 
-    setIsProcessingVisualization(false);
-    setActiveMessageId(null);
-  }, [messages, setMessages]);
+  // Also, make sure to add visualizingMessageId to the MessageList props:
+  <MessageList
+    // ... other props
+    visualizingMessageId={visualizingMessageId}
+  // ... other props
+  />
 
   const getBotResponse = async (userMessage) => {
     try {

@@ -63,8 +63,8 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
     window.scrollTo(0, 0);
   };
 
-  const handleSidebarSend = () => {
-    const trimmedInput = sidebarInput.trim();
+  const handleSidebarSend = (input) => {
+    const trimmedInput = input?.trim();
     if (!trimmedInput) return;
 
     setSidebarMessages(prev => [...prev, { text: trimmedInput, isUser: true }]);
@@ -78,51 +78,300 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
     }, 1000);
   };
 
-  const handleExerciseQuestionClick = (question) => {
+  const handleExerciseNovelQuestionClick = async (question) => {
+    // 1. Show user message
     setSidebarMessages(prev => [...prev, { text: question, isUser: true }]);
-    let answer = "I'm sorry, I couldn't find an answer to that question.";
-    if (selectedTopic === 'comprehension' && selectedComprehension !== null) {
-      const currentExercise = comprehensionExercises[selectedComprehension];
-      if (currentExercise && currentExercise.answers) {
-        const questionIndex = currentExercise.questions.findIndex(q => q === question);
-        if (questionIndex !== -1 && currentExercise.answers[questionIndex]) {
-          answer = currentExercise.answers[questionIndex];
-        }
+
+    try {
+      // 2. Send question to the backend
+      const response = await fetch('http://127.0.0.1:8000/api/v1/self-rag/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question }),
+      });
+
+      // 3. Check and parse the response
+      if (!response.ok) {
+        throw new Error('Failed to get response from server');
       }
+
+      const data = await response.json();
+      const answer = data.answer || "Sorry, I couldn't find an answer.";
+
+      // 4. Show bot response after 1 second
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: answer, isUser: false }
+        ]);
+      }, 1000);
+    } catch (error) {
+      console.error('Fetch error:', error);
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: "Sorry, something went wrong while fetching the answer.", isUser: false }
+        ]);
+      }, 1000);
     }
-    setTimeout(() => {
+  };
+  const handleExerciseComprehensionQuestionClick = async (passage, question) => {
+    // 1. Combine passage + question
+    const combinedInput = `${passage.trim()}\n\n${question.trim()}`;
+
+    // 2. Show the full input in the sidebar as user message
+    setSidebarMessages(prev => [...prev, { text: question, isUser: true }]);
+
+    try {
+      // 3. Send to backend as { text: "..." }
+      const response = await fetch('http://127.0.0.1:8000/api/v1/router/1', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question: combinedInput }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get a response from the server');
+      }
+
+      const data = await response.json();
+
+      // 4. Use the first answer from the backend
+      const firstQA = data["Evaluating Questions and Answers"]?.[0];
+      const answer = firstQA?.["Correct Answer"] || "Sorry, I couldn't find an answer.";
+      // 5. Display bot reply
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: answer, isUser: false }
+        ]);
+      }, 1000);
+
+    } catch (error) {
+      console.error('Fetch error:', error);
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: "Sorry, something went wrong while processing the comprehension.", isUser: false }
+        ]);
+      }, 1000);
+    }
+  };
+
+
+  // const handleExerciseQuestionClick = (question) => {
+  //   setSidebarMessages(prev => [...prev, { text: question, isUser: true }]);
+  //   let answer = "I'm sorry, I couldn't find an answer to that question.";
+  //   if (selectedTopic === 'comprehension' && selectedComprehension !== null) {
+  //     const currentExercise = comprehensionExercises[selectedComprehension];
+  //     if (currentExercise && currentExercise.answers) {
+  //       const questionIndex = currentExercise.questions.findIndex(q => q === question);
+  //       if (questionIndex !== -1 && currentExercise.answers[questionIndex]) {
+  //         answer = currentExercise.answers[questionIndex];
+  //       }
+  //     }
+  //   }
+  //   setTimeout(() => {
+  //     setSidebarMessages(prev => [
+  //       ...prev,
+  //       { text: answer, isUser: false }
+  //     ]);
+  //   }, 1000);
+  // };
+
+  const handleTranslationQuestionClick = async (question) => {
+    // 1. Show user's message
+    setSidebarMessages(prev => [...prev, { text: question, isUser: true }]);
+
+    try {
+      // 2. Send request to the translation backend
+      const response = await fetch('http://127.0.0.1:8000/api/v1/translation/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: question }),
+      });
+
+      // 3. Handle error
+      if (!response.ok) {
+        throw new Error('Failed to get translation from server');
+      }
+
+      const data = await response.json();
+
+      // 4. Get translated text
+      const answer = data.translated_text || "Sorry, no translation was returned.";
+
+      // 5. Show the bot's translation after 1 second
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: answer, isUser: false }
+        ]);
+      }, 1000);
+
+    } catch (error) {
+      console.error('Translation fetch error:', error);
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: "Sorry, something went wrong while translating the text.", isUser: false }
+        ]);
+      }, 1000);
+    }
+  };
+
+
+  const handleMCQQuestionClick = async (mcqWithChoices) => {
+    // 1. Show user input in the sidebar
+    setSidebarMessages(prev => [...prev, { text: mcqWithChoices, isUser: true }]);
+
+    try {
+      // 2. Send input to backend
+      const response = await fetch('http://127.0.0.1:8000/api/v1/translation/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: mcqWithChoices }),
+      });
+
+      // 3. Parse backend response
+      if (!response.ok) {
+        throw new Error('Failed to get response from translation API');
+      }
+
+      const data = await response.json();
+      const translatedAnswer = data.best_choice || "Sorry, I couldn't find a translation.";
+
+      // 4. Show translated answer in sidebar after a short delay
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: translatedAnswer, isUser: false }
+        ]);
+      }, 1000);
+
+    } catch (error) {
+      console.error('Translation MCQ fetch error:', error);
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: "Sorry, something went wrong while translating the MCQ.", isUser: false }
+        ]);
+      }, 1000);
+    }
+  };
+
+
+  const handleGrammarQuestionClick = async (mcq) => {
+    const [question, ...options] = mcq.split('\n');
+
+    // Format the question with choices A., B., C., ...
+    const formattedQuestion = `${question}\n\n${options
+      .map(opt => opt.trim())
+      .filter(opt => opt)
+      .map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`)
+      .join('\n')}`;
+
+    // Show user question
+    setSidebarMessages(prev => [...prev, { text: formattedQuestion, isUser: true }]);
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/v1/MCQ/mcq', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question: formattedQuestion }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch answer from backend');
+      }
+
+      const data = await response.json();
+      const answer = data.correct_answer || "No answer returned.";
+
+      // Show answer
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: `Correct Answer:\n${answer}`, isUser: false }
+        ]);
+      }, 1000);
+    } catch (error) {
+      console.error('Grammar MCQ fetch error:', error);
       setSidebarMessages(prev => [
         ...prev,
-        { text: answer, isUser: false }
+        { text: ' Error fetching the grammar answer.', isUser: false }
       ]);
-    }, 1000);
+    }
   };
 
-  const handleTranslationQuestionClick = (question) => {
-    setSidebarInput(question);
-    // Optionally, you can also send the question automatically by uncommenting the next line
-    // handleSidebarSend(question);
-  };
 
-  const handleMCQQuestionClick = (mcq) => {
+
+  const handleVocabQuestionClick = async (mcq) => {
     const [question, ...options] = mcq.split('\n');
-    const formattedQuestion = `${question}\n\n${options.map(opt => opt.trim()).filter(opt => opt).join('\n')}`;
-    setSidebarInput(formattedQuestion);
+
+    // Format the question with choices A., B., C., ...
+    const formattedQuestion = `${question}\n\n${options
+      .map(opt => opt.trim())
+      .filter(opt => opt)
+      .map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`)
+      .join('\n')}`;
+
+    // Show user question
+    setSidebarMessages(prev => [...prev, { text: formattedQuestion, isUser: true }]);
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/v1/MCQ/mcq', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question: formattedQuestion }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch answer from backend');
+      }
+
+      const data = await response.json();
+      const answer = data.correct_answer || "No answer returned.";
+
+      // Show answer
+      setTimeout(() => {
+        setSidebarMessages(prev => [
+          ...prev,
+          { text: `Correct Answer:\n${answer}`, isUser: false }
+        ]);
+      }, 1000);
+    } catch (error) {
+      console.error('Grammar MCQ fetch error:', error);
+      setSidebarMessages(prev => [
+        ...prev,
+        { text: ' Error fetching the grammar answer.', isUser: false }
+      ]);
+    }
   };
 
-  // Dummy MCQ check handler (implement as needed)
-  const handleCheckMCQ = (index, selectedOption) => {
-    // Implement your MCQ answer checking logic here
-    alert('Check Answer clicked! (implement logic)');
-  };
+
+
+
+
 
   return (
     <div
-      className={`min-h-screen transition-all duration-700 ease-in-out ${
-        isDarkMode
-          ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
-          : 'bg-gradient-to-br from-[#e6e0f8] to-[#ffffff] text-[#012060]'
-      }`}
+      className={`min-h-screen transition-all duration-700 ease-in-out ${isDarkMode
+        ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
+        : 'bg-gradient-to-br from-[#e6e0f8] to-[#ffffff] text-[#012060]'
+        }`}
     >
       {/* Exercises Page (Novel/Translation) */}
       {showExercisesPage && selectedTopic === 'novel' ? (
@@ -191,10 +440,10 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                   </h2>
                   <div className="space-y-4 mb-8 max-w-3xl mx-auto">
                     {selectedExerciseQuestions.map((q, idx) => (
-                      <div 
-                        key={idx} 
+                      <div
+                        key={idx}
                         className="bg-white p-6 rounded-xl shadow-md cursor-pointer hover:bg-gray-50 transition-colors"
-                        onClick={() => handleExerciseQuestionClick(q)}
+                        onClick={() => handleExerciseNovelQuestionClick(q)}
                       >
                         <p className="font-medium text-gray-800">{q}</p>
                       </div>
@@ -229,14 +478,14 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
             </div>
           </div>
           {/* Sidebar Chatbot */}
-          <div 
+          <div
             className={`lg:block fixed right-0 top-0 h-screen bg-white border-t-2 lg:border-t-0 lg:border-l-2 border-[#7030a0] p-4 overflow-y-auto rounded-r-3xl shadow-lg transition-all duration-300 ease-in-out flex flex-col
               ${isSidebarExpanded ? 'w-[600px] xl:w-[700px]' : 'w-[380px] xl:w-[420px]'}
             `}
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-[#7030a0]">Edu-Genie Assistant</h2>
-              <button 
+              <button
                 onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
                 className="text-gray-500 hover:text-gray-700 focus:outline-none"
                 aria-label={isSidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -253,11 +502,10 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                 {sidebarMessages.map((msg, idx) => (
                   <div
                     key={idx}
-                    className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${
-                      msg.isUser
-                        ? 'bg-[#7030a0] text-white ml-auto'
-                        : 'bg-white text-gray-800 mr-auto shadow-sm'
-                    }`}
+                    className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${msg.isUser
+                      ? 'bg-[#7030a0] text-white ml-auto'
+                      : 'bg-white text-gray-800 mr-auto shadow-sm'
+                      }`}
                   >
                     {msg.text}
                   </div>
@@ -349,7 +597,7 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     <h2 className="text-3xl font-bold text-[#7030a0] mb-2">Select a Chapter</h2>
                     <p className="text-gray-600">Click any chapter to read or select exercises</p>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-8 max-w-5xl mx-auto">
                     {Array.from({ length: 12 }, (_, i) => (
                       <button
@@ -389,14 +637,14 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                 </div>
               </div>
               {/* Sidebar Chatbot */}
-              <div 
+              <div
                 className={`lg:block fixed right-0 top-0 h-screen bg-white border-t-2 lg:border-t-0 lg:border-l-2 border-[#7030a0] p-4 overflow-y-auto rounded-r-3xl shadow-lg transition-all duration-300 ease-in-out flex flex-col
                   ${isSidebarExpanded ? 'w-[600px] xl:w-[700px]' : 'w-[380px] xl:w-[420px]'}
                 `}
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold text-[#7030a0]">Edu-Genie Assistant</h2>
-                  <button 
+                  <button
                     onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
                     className="text-gray-500 hover:text-gray-700 focus:outline-none"
                     aria-label={isSidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -413,11 +661,10 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     {sidebarMessages.map((msg, idx) => (
                       <div
                         key={idx}
-                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${
-                          msg.isUser
-                            ? 'bg-[#7030a0] text-white ml-auto'
-                            : 'bg-white text-gray-800 mr-auto shadow-sm'
-                        }`}
+                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${msg.isUser
+                          ? 'bg-[#7030a0] text-white ml-auto'
+                          : 'bg-white text-gray-800 mr-auto shadow-sm'
+                          }`}
                       >
                         {msg.text}
                       </div>
@@ -452,7 +699,7 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
               {/* Main Content */}
               <div className="flex-1 overflow-auto">
                 <div className="container px-4 py-8 max-w-0xl pl-12">
-                  <h2 className="text-3xl font-bold mb-6 text-[#7030a0] font-serif">
+                  <h2 className="text-3xl font-bold mb-6 text-[#7030a0] font-serif mr-20">
                     Chapter {selectedChapter}
                   </h2>
                   {isLoading ? (
@@ -461,7 +708,8 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     </div>
                   ) : (
                     <div className="flex flex-col items-center w-full">
-                      <div className="bg-white rounded-2xl p-10 shadow-lg w-full max-w-5xl mx-auto">
+                      <div className="bg-white rounded-2xl p-6 md:p-8 shadow-lg w-full max-w-4xl mr-20">
+
                         {chapterText.split('\n\n').map((paragraph, index) => (
                           <p
                             key={index}
@@ -502,14 +750,14 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                 </div>
               </div>
               {/* Sidebar Chatbot */}
-              <div 
+              <div
                 className={`lg:block fixed right-0 top-0 h-screen bg-white border-t-2 lg:border-t-0 lg:border-l-2 border-[#7030a0] p-4 overflow-y-auto rounded-r-3xl shadow-lg transition-all duration-300 ease-in-out flex flex-col
                   ${isSidebarExpanded ? 'w-[600px] xl:w-[700px]' : 'w-[380px] xl:w-[420px]'}
                 `}
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold text-[#7030a0]">Edu-Genie Assistant</h2>
-                  <button 
+                  <button
                     onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
                     className="text-gray-500 hover:text-gray-700 focus:outline-none"
                     aria-label={isSidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -526,11 +774,10 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     {sidebarMessages.map((msg, idx) => (
                       <div
                         key={idx}
-                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${
-                          msg.isUser
-                            ? 'bg-[#7030a0] text-white ml-auto'
-                            : 'bg-white text-gray-800 mr-auto shadow-sm'
-                        }`}
+                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${msg.isUser
+                          ? 'bg-[#7030a0] text-white ml-auto'
+                          : 'bg-white text-gray-800 mr-auto shadow-sm'
+                          }`}
                       >
                         {msg.text}
                       </div>
@@ -608,8 +855,8 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                       ? translationExercises.englishToArabic
                       : translationExercises.arabicToEnglish
                     ).map((question, idx) => (
-                      <div 
-                        key={idx} 
+                      <div
+                        key={idx}
                         className="bg-white p-6 rounded-xl shadow-md cursor-pointer hover:bg-gray-50 transition-colors"
                         onClick={() => handleTranslationQuestionClick(question)}
                       >
@@ -624,8 +871,8 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     {translationExercises.mcq.map((mcq, index) => {
                       const [question, ...options] = mcq.split('\n');
                       return (
-                        <div 
-                          key={index} 
+                        <div
+                          key={index}
                           className="bg-white p-6 rounded-xl shadow-md cursor-pointer hover:bg-gray-50 transition-colors"
                           onClick={() => handleMCQQuestionClick(mcq)}
                         >
@@ -633,8 +880,8 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                           <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
                             {options.map((option, i) => (
                               <div key={i} className="flex items-center">
-                                <input 
-                                  type="radio" 
+                                <input
+                                  type="radio"
                                   id={`mcq-${index}-${i}`}
                                   name={`mcq-${index}`}
                                   className="mr-2 h-4 w-4 text-[#7030a0] focus:ring-[#7030a0]"
@@ -667,14 +914,14 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
               </div>
 
               {/* Sidebar Chatbot */}
-              <div 
+              <div
                 className={`lg:block fixed right-0 top-0 h-screen bg-white border-t-2 lg:border-t-0 lg:border-l-2 border-[#7030a0] p-4 overflow-y-auto rounded-r-3xl shadow-lg transition-all duration-300 ease-in-out flex flex-col
                   ${isSidebarExpanded ? 'w-[600px] xl:w-[700px]' : 'w-[380px] xl:w-[420px]'}
                 `}
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold text-[#7030a0]">Edu-Genie Assistant</h2>
-                  <button 
+                  <button
                     onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
                     className="text-gray-500 hover:text-gray-700 focus:outline-none"
                     aria-label={isSidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -691,11 +938,10 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     {sidebarMessages.map((msg, idx) => (
                       <div
                         key={idx}
-                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${
-                          msg.isUser
-                            ? 'bg-[#7030a0] text-white ml-auto'
-                            : 'bg-white text-gray-800 mr-auto shadow-sm'
-                        }`}
+                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${msg.isUser
+                          ? 'bg-[#7030a0] text-white ml-auto'
+                          : 'bg-white text-gray-800 mr-auto shadow-sm'
+                          }`}
                       >
                         {msg.text}
                       </div>
@@ -755,9 +1001,9 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                               </svg>
                             </div>
                             <div className="relative h-full flex flex-col items-center justify-center p-6 text-center">
-                              <span className="text-3xl font-extrabold text-white mb-1">{idx + 1}</span>
-                              <span className="text-xl font-semibold text-white">Comprehension</span>
-                              <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/30 group-hover:bg-white/50 transition-all duration-300"></div>
+                              <span className="text-2xl font-extrabold text-white mb-1">{idx + 1}</span>
+                              <span className="text-0.5xl font-semibold text-white">Comprehension</span>
+                              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1/2 h-1 bg-white/30 group-hover:bg-white/50 transition-all duration-300"></div>
                             </div>
                           </button>
                         ))}
@@ -792,9 +1038,9 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                       <div className="space-y-4 mb-8">
                         <h3 className="text-xl font-semibold text-[#7030a0] mb-4">Questions</h3>
                         {comprehensionExercises[selectedComprehension].questions.map((q, idx) => (
-                          <div 
+                          <div
                             key={idx}
-                            onClick={() => handleExerciseQuestionClick(q)}
+                            onClick={() => handleExerciseComprehensionQuestionClick(comprehensionExercises[selectedComprehension].passage, q)}
                             className="bg-white p-6 rounded-xl shadow-md cursor-pointer hover:bg-gray-50 transition-colors"
                           >
                             <p className="font-medium text-gray-800">
@@ -835,14 +1081,14 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                 </div>
               </div>
               {/* Sidebar Chatbot */}
-              <div 
+              <div
                 className={`lg:block fixed right-0 top-0 h-screen bg-white border-t-2 lg:border-t-0 lg:border-l-2 border-[#7030a0] p-4 overflow-y-auto rounded-r-3xl shadow-lg transition-all duration-300 ease-in-out flex flex-col
                   ${isSidebarExpanded ? 'w-[600px] xl:w-[700px]' : 'w-[380px] xl:w-[420px]'}
                 `}
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold text-[#7030a0]">Edu-Genie Assistant</h2>
-                  <button 
+                  <button
                     onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
                     className="text-gray-500 hover:text-gray-700 focus:outline-none"
                     aria-label={isSidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -859,11 +1105,10 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     {sidebarMessages.map((msg, idx) => (
                       <div
                         key={idx}
-                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${
-                          msg.isUser
-                            ? 'bg-[#7030a0] text-white ml-auto'
-                            : 'bg-white text-gray-800 mr-auto shadow-sm'
-                        }`}
+                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${msg.isUser
+                          ? 'bg-[#7030a0] text-white ml-auto'
+                          : 'bg-white text-gray-800 mr-auto shadow-sm'
+                          }`}
                       >
                         {msg.text}
                       </div>
@@ -981,9 +1226,11 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                       className="bg-white p-6 rounded-xl shadow-md cursor-pointer hover:bg-gray-50 transition-colors mb-4"
                       onClick={() => {
                         const q = grammarQuestions[selectedGrammarUnit][currentQuestionIndex];
-                        const formatted = `${q.question}\n\n${q.options.map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`).join('\n')}`;
-                        setSidebarInput(formatted);
+                        const mcq = `${q.question}\n${q.options.join('\n')}`;
+                        handleGrammarQuestionClick(mcq);
                       }}
+
+
                     >
                       <p className="text-lg font-semibold mb-3 text-[#7030a0]">
                         {grammarQuestions[selectedGrammarUnit][currentQuestionIndex].question}
@@ -1044,14 +1291,14 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                 </div>
               </div>
               {/* Sidebar Chatbot */}
-              <div 
+              <div
                 className={`lg:block fixed right-0 top-0 h-screen bg-white border-t-2 lg:border-t-0 lg:border-l-2 border-[#7030a0] p-4 overflow-y-auto rounded-r-3xl shadow-lg transition-all duration-300 ease-in-out flex flex-col
                   ${isSidebarExpanded ? 'w-[600px] xl:w-[700px]' : 'w-[380px] xl:w-[420px]'}
                 `}
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold text-[#7030a0]">Edu-Genie Assistant</h2>
-                  <button 
+                  <button
                     onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
                     className="text-gray-500 hover:text-gray-700 focus:outline-none"
                     aria-label={isSidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -1068,11 +1315,10 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     {sidebarMessages.map((msg, idx) => (
                       <div
                         key={idx}
-                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${
-                          msg.isUser
-                            ? 'bg-[#7030a0] text-white ml-auto'
-                            : 'bg-white text-gray-800 mr-auto shadow-sm'
-                        }`}
+                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${msg.isUser
+                          ? 'bg-[#7030a0] text-white ml-auto'
+                          : 'bg-white text-gray-800 mr-auto shadow-sm'
+                          }`}
                       >
                         {msg.text}
                       </div>
@@ -1159,8 +1405,8 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                       className="bg-white p-6 rounded-xl shadow-md cursor-pointer hover:bg-gray-50 transition-colors mb-4"
                       onClick={() => {
                         const q = vocabularyQuestions[selectedVocabularyUnit][currentQuestionIndex];
-                        const formatted = `${q.question}\n\n${q.options.map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`).join('\n')}`;
-                        setSidebarInput(formatted);
+                        const mcq = `${q.question}\n${q.options.join('\n')}`;
+                        handleVocabQuestionClick(mcq);
                       }}
                     >
                       <p className="text-lg font-semibold mb-3 text-[#7030a0]">
@@ -1222,14 +1468,14 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                 </div>
               </div>
               {/* Sidebar Chatbot */}
-              <div 
+              <div
                 className={`lg:block fixed right-0 top-0 h-screen bg-white border-t-2 lg:border-t-0 lg:border-l-2 border-[#7030a0] p-4 overflow-y-auto rounded-r-3xl shadow-lg transition-all duration-300 ease-in-out flex flex-col
                   ${isSidebarExpanded ? 'w-[600px] xl:w-[700px]' : 'w-[380px] xl:w-[420px]'}
                 `}
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold text-[#7030a0]">Edu-Genie Assistant</h2>
-                  <button 
+                  <button
                     onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
                     className="text-gray-500 hover:text-gray-700 focus:outline-none"
                     aria-label={isSidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -1246,11 +1492,10 @@ export default function CurriculumPage({ isDarkMode, onExitToWelcome, onAskQuest
                     {sidebarMessages.map((msg, idx) => (
                       <div
                         key={idx}
-                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${
-                          msg.isUser
-                            ? 'bg-[#7030a0] text-white ml-auto'
-                            : 'bg-white text-gray-800 mr-auto shadow-sm'
-                        }`}
+                        className={`p-2 rounded-lg max-w-[95%] break-words text-sm ${msg.isUser
+                          ? 'bg-[#7030a0] text-white ml-auto'
+                          : 'bg-white text-gray-800 mr-auto shadow-sm'
+                          }`}
                       >
                         {msg.text}
                       </div>

@@ -24,36 +24,36 @@ export const translationExercises = {
     "ترجم إلى الإنجليزية: كان أقصى طموحنا كمصريين هو التأهل للدور الثاني في بطولة كأس الأمم الأفريقية ولكن ازداد الأمل في الحصول على البطولة بعد الأداء المشرف والبطولي للاعبي المنتخب."
   ],
 
-mcq: [
-  `ترجم إلى الإنجليزية: Inorganic farming can be a solution to overcome the problem of food shortage.
+  mcq: [
+    `ترجم إلى العربية: Inorganic farming can be a solution to overcome the problem of food shortage.
 a) في الزراعة العضوية ممكن أن نجد حلا للتغلب على مشكلة نقص الغذاء
 b) الزراعة غير العضوية ممكن أن تكون حلا للتغلب على مشكلة توفر الغذاء
 c) الزراعة غير العضوية ممكن أن تكون حلا للتغلب على مشكلة نقص الغذاء
 d) في الزراعة العضوية ممكن أن نفتح حلا للتغلب على مشكلة تخزين الغذاء`,
 
-  `ترجم إلى الإنجليزية: The world is witnessing unstable weather and climate change as a result of global warming and pollution.
+    `ترجم إلى العربية: The world is witnessing unstable weather and climate change as a result of global warming and pollution.
 a) يشهد العالم حالة من استقرار الطقس وتغير المناخ نتيجة الاحتباس الحراري والتلوث
 b) يشهد العالم حالة من عدم استقرار الطقس وتغير المناخ نتيجة الاحتباس الحراري والتلوث
 c) يشهد العالم حالة من عدم استقرار الطقس وتغير الفصول نتيجة الاحتباس الحراري والتلوث
 d) يشهد العالم حالة من عدم استقرار الطقس وتغير المناخ نتيجة للكوارث الطبيعية والتلوث`,
 
-  `ترجم إلى الإنجليزية: Sports fanaticism has harmful effects on society. Sports are for rapprochement, not distance.
+    `ترجم إلى العربية: Sports fanaticism has harmful effects on society. Sports are for rapprochement, not distance.
 a) عدم ممارسة الرياضة له آثاره الضارة على المجتمع، فالرياضة للتقارب لا للتباعد
 b) التعصب الرياضي له آثاره الضارة على المجتمع، فالرياضة للتقارب لا للتباعد
 c) التعصب الرياضي له آثاره الضارة على المجتمع، فالرياضة وسيلة للترفيه
 d) التعصب الرياضي له آثاره الضارة على المجتمع، فالرياضة تنمي الروح الرياضية`,
 
-  `ترجم إلى الإنجليزية: لن تجلب الحروب لعالمنا سوى مزيد من الدمار والكراهية، ولا يمكن تسوية النزاعات إلا بالحوار.
+    `ترجم إلى الإنجليزية: لن تجلب الحروب لعالمنا سوى مزيد من الدمار والكراهية، ولا يمكن تسوية النزاعات إلا بالحوار.
 a) Wars will only bring more destruction and hatred to our world, and conflicts can only be settled through dialogue
 b) Wars will only bring more reconstruction and hatred to our world, and conflicts can only be settled through dialogue
 c) Wars will only bring more destruction and hatred to our world, and conflicts can only be settled through tolerance
 d) Wars will only bring many destruction and hatred to our world, but conflicts can only be settled through dialogue`,
 
-  `ترجم إلى الإنجليزية: للمدرسة دور في ترسيخ مفهوم المواطنة في شخصية الطلاب، مما ينعكس إيجابًا على المجتمع.
-a) The school has a role in establishing the concept of citizenship in students’ personalities, which is reflected positively on society
+    `ترجم إلى الإنجليزية: للمدرسة دور في ترسيخ مفهوم المواطنة في شخصية الطلاب، مما ينعكس إيجابًا على المجتمع.
+a) The school has a ro in establishing the concept of citizenship in students’ personalities, which is reflected positively on society
 b) The school has a role in establishing the concept of citizenship in students’ personalities, which is infected positively on society
 c) The school has a role in establishing the believe of citizenship in students’ personalities, which is reflected positively on society
 d) The school has a role in establishing the concept of citizenship in students’ personalities, which is reflected positively on society`
-]
+  ]
 
 };
